@@ -59,7 +59,7 @@ for root, dirs, filenames in os.walk(import_folder):
 subdirs = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
 
 # organize folders that have new stuff
-for folder in subdirs:
+for folder in modified_folders:
     data = []
     #print folder
     # get data for each file
@@ -162,6 +162,8 @@ for folder in subdirs:
                 address = ""
                 if json_['results']:
                     address = str(json_['results'][2]['formatted_address'])
+                else:
+                    address = "Unknown Place"
 
                 if ', USA' in address:
                     address = address.replace(', USA', '')
