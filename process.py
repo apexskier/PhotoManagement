@@ -11,9 +11,8 @@ export_folder = 'Photos'
 allowedExts = ['jpg', 'tiff', 'jpeg']
 
 pp = pprint.PrettyPrinter(indent=4)
-
 def get_exif_data(fname):
-    """Get embedded EXIF data from image file."""
+    # Get embedded EXIF data from image file.
     ret = {}
     try:
         img = Image.open(fname)
@@ -57,14 +56,12 @@ for root, dirs, filenames in os.walk(import_folder):
                     print "Can't move", f_full
             except KeyError:
                 print "no original time for " + f_full
-
 subdirs = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
 
 # organize folders that have new stuff
-for folder in modified_folders:
+for folder in subdirs:
     data = []
-    print folder
-
+    #print folder
     # get data for each file
     for root, dirs, filenames in os.walk(folder):
         for f in filenames:
@@ -134,11 +131,13 @@ for folder in modified_folders:
 
     print groups
 
-    # move photos in to folders
+    # move photos into folders
     event_ct = 1
     event_names = []
     for pair in groups:
-        event_name = str(event_ct)
+        event_name = str(data[pair[0]]['date'].day)
+        if int(event_name) != data[pair[1]]['date'].day:
+            event_name += '-' + str(data[pair[1]]['date'].day)
         avg = (pair[0] + pair[1]) / 2
 
         # create a name based on the place
@@ -146,7 +145,7 @@ for folder in modified_folders:
             index = i / 2
             if i % 2 == 0:
                 index = -i / 2
-            if data[avg + index]['gps']:
+            if data[avg + index]['gps'] and 'GPSLatitude' in data[avg + index]['gps']:
                 lat = data[avg + index]['gps']['GPSLatitude'][0][0] + \
                       data[avg + index]['gps']['GPSLatitude'][1][0] / 60.0 + \
                       data[avg + index]['gps']['GPSLatitude'][2][0] / 360000.0
@@ -160,13 +159,14 @@ for folder in modified_folders:
 
                 url = "http://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&sensor=false".format(lat=lat, lng=lng)
                 json_ = json.load(urllib2.urlopen(url))
+                address = ""
                 if json_['results']:
                     address = str(json_['results'][2]['formatted_address'])
 
                 if ', USA' in address:
                     address = address.replace(', USA', '')
 
-                event_name = str(data[pair[0]]['date'].day) + '-' + address
+                event_name += '-' + address
                 if event_name in event_names:
                     event_name += ' ' + str(event_ct)
                 break
@@ -187,10 +187,10 @@ for folder in modified_folders:
 
         event_ct += 1
 
-
+    import shutil
     # remove empty folders
     for root, dirs, filenames in os.walk(folder):
         for d in dirs:
-            if not os.listdir(os.path.join(root, d)):
-                os.rmdir(os.path.join(root, d))
+            if os.listdir(os.path.join(root, d)) == ['.DS_Store']:
+                shutil.rmtree(os.path.join(root, d))
 
