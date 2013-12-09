@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import os, pprint
 from datetime import datetime
 from PIL import Image
@@ -27,6 +29,8 @@ def get_exif_data(fname):
 
 modified_folders = []
 
+print "Processing new files"
+
 # move files to month folders
 for root, dirs, filenames in os.walk(import_folder):
     for f in filenames:
@@ -44,17 +48,20 @@ for root, dirs, filenames in os.walk(import_folder):
                 if not os.path.exists(month_dir):
                     os.makedirs(month_dir)
 
-                os.rename(f_full, os.path.join(month_dir, f))
+                try:
+                    os.rename(f_full, os.path.join(month_dir, f))
 
-                if month_dir not in modified_folders:
-                    modified_folders.append(month_dir)
+                    if month_dir not in modified_folders:
+                        modified_folders.append(month_dir)
+                except:
+                    print "Can't move", f_full
             except KeyError:
                 print "no original time for " + f_full
 
 subdirs = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
 
 # organize folders that have new stuff
-for folder in subdirs:
+for folder in modified_folders:
     data = []
     print folder
 
@@ -97,7 +104,24 @@ for folder in subdirs:
                 dcount += 1
             else:
                 if dcount > 5:
-                    data2.append((start, start + dcount + 1))
+                    last_dt2 = None
+                    days = []
+                    count = 0
+                    for j in range(start, start + dcount + 2):
+                        if last_dt2:
+                            if data[j]['date'].day == last_dt2.day:
+                                count += 1
+                            else:
+                                if count and count < 3:
+                                    days.append((j - count - 1, j - 1))
+                                    count = 0
+                        last_dt2 = data[j]['date']
+                    if count and count < 3:
+                        days.append((j - count - 1, j - 1))
+
+                    print "days to eliminate:", days
+
+                    groups.append((start, start + dcount + 1))
 
                 start = i
                 dcount = 0
@@ -156,7 +180,10 @@ for folder in subdirs:
         event_names.append(event_name)
 
         for i in range(pair[0], pair[1]):
-            os.rename(data[i]['path'], event_dir + '/' + data[i]['name'])
+            try:
+                os.rename(data[i]['path'], event_dir + '/' + data[i]['name'])
+            except:
+                print "Can't move", data[i]['path']
 
         event_ct += 1
 
