@@ -20,7 +20,7 @@ Example dir structure after running...
         ├── 2-February
         │   ├── img3.jpg
         │   ├── img4.jpg
-        │   └── 13-14-Bellingham, WA
+        │   └── 13-Bellingham, WA
         │       ├── img5.jpg
         │       ├── img6.jpg
         │       ├── img7.jpg
