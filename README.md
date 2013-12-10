@@ -7,24 +7,25 @@ and name them by their location.
 
 Example dir structure after running...
 
-- process.py
-- run.sh
-+ Import
-  - anything left over
-+ Photos
-  + 2013
-    + 1-January
-      - img1.jpg
-      - img2.jpg
-    + 2-February
-      - img3.jpg
-      - img4.jpg
-      + 13-14-Bellingham, WA
-        - img5.jpg
-        - img6.jpg
-        - img7.jpg
-        - img8.jpg
-        - img9.jpg
-    + 4-April
-      - img10.jpg
-
+<pre>
+├── process.py
+├── run.sh
+├── Import
+│   └── anything left over
+└── Photos
+    └── 2013
+        ├── 1-January
+        │   ├── img1.jpg
+        │   └── img2.jpg
+        ├── 2-February
+        │   ├── img3.jpg
+        │   ├── img4.jpg
+        │   └── 13-14-Bellingham, WA
+        │       ├── img5.jpg
+        │       ├── img6.jpg
+        │       ├── img7.jpg
+        │       ├── img8.jpg
+        │       └── img9.jpg
+        └── 4-April
+            └── img10.jpg
+</pre>
