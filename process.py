@@ -63,15 +63,16 @@ def sort_import(f, f_full, cant_move, exif):
     year_dir = os.path.join(export_folder, str(exif['DateTimeOriginal'].year))
     month_dir = os.path.join(year_dir, str(exif['DateTimeOriginal'].month) + '-' + exif['DateTimeOriginal'].strftime('%B')) # months named like: 6-June
 
-    try: # to move the photo into it's destination
-        if os.path.exists(os.path.join(month_dir, f)):
-            cant_move.append("Duplicate found for", f_full, "(moving to", month_dir + ").")
-        elif f_full != os.path.join(month_dir, f):
-            os.renames(f_full, os.path.join(month_dir, f))
-            if month_dir not in modified_folders: # remember what folders have new stuff
-                modified_folders.append(month_dir)
-    except:
-        cant_move.append(f_full)
+    if os.path.exists(os.path.join(month_dir, f)):
+        cant_move.append("Duplicate found for " + f_full + " (moving to " + month_dir + ").")
+    else:
+        try: # to move the photo into it's destination
+            if f_full != os.path.join(month_dir, f):
+                os.renames(f_full, os.path.join(month_dir, f))
+                if month_dir not in modified_folders: # remember what folders have new stuff
+                    modified_folders.append(month_dir)
+        except:
+            cant_move.append(f_full)
 
 # remove empty folders
 for root, dirs, filenames in os.walk(import_folder):
