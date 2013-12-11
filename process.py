@@ -55,7 +55,6 @@ def loop_through_dir(folder, function):
 
     return output
 
-"""
 modified_folders = []
 
 print "Sorting new photos."
@@ -93,7 +92,7 @@ if cant_move:
     print
 print "Moved photos into month folders."
 print
-"""
+
 # if testing or want to reevaluate all months, use the following instead of modified_folders
 subdirs = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
 
