@@ -5,6 +5,7 @@ from datetime import datetime
 from PIL import Image
 from PIL import ExifTags
 import urllib2, json
+import known_events
 
 import_folder = 'Import'
 export_folder = 'Photos'
@@ -35,7 +36,7 @@ def get_exif_data(fname):
 def loop_through_dir(folder, function):
     output = []
     for root, dirs, filenames in os.walk(folder):
-        f_len = len(filenames) - 1
+        f_len = 0# len(filenames) - 1
         for i, f in enumerate(filenames): # loop through files in import dir
             fileName, fileExt = os.path.splitext(f)
             f_full = os.path.join(root, f)
@@ -54,6 +55,7 @@ def loop_through_dir(folder, function):
 
     return output
 
+"""
 modified_folders = []
 
 print "Sorting new photos."
@@ -91,7 +93,7 @@ if cant_move:
     print
 print "Moved photos into month folders."
 print
-
+"""
 # if testing or want to reevaluate all months, use the following instead of modified_folders
 subdirs = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
 
@@ -108,7 +110,7 @@ def get_data(f, f_full, data, exif):
         'gps': gpsinfo
     })
 
-# modified_folders = subdirs # uncomment for testing or resetting all events.
+modified_folders = subdirs # uncomment for testing or resetting all events.
 
 if modified_folders:
     print
@@ -137,11 +139,20 @@ for folder in modified_folders:
         dates = sorted(map(count_days, dates), key=lambda k: k[0]) # get a list sorted by date of (day, count of days, starting index)
         dates = [date for date in dates if date[1] > 4]
 
-        if dates:
-            print dates
-
         for group in dates:
             event_name = str(group[0])
+
+            event_name = known_events.getHoliday(data[group[2]]['date']) or event_name
+            if type(event_name) == tuple:
+                age = data[group[2]]['date'].year - event_name[1]
+                if age == 0:
+                    event_name = event_name[0] + "'s Birthday"
+                else:
+                    if 4 <= age <= 20 or 24 <= day <= 30:
+                        suffix = "th"
+                    else:
+                        suffix = ["st", "nd", "rd"][age % 10 - 1]
+                    event_name = event_name[0] + "'s " + str(age) + suffix + " Birthday"
 
             # create a name based on the place
             for i in range(group[2], group[2] + group[1]):
@@ -166,6 +177,7 @@ for folder in modified_folders:
 
                     address = ""
                     if json_['results']:
+                        # print ">>>", url
                         address = json_['results'][1]['formatted_address']
                     else:
                         address = "Unknown Place"
@@ -173,6 +185,8 @@ for folder in modified_folders:
 
                     event_name += '-' + address
                     break
+
+            print data[group[2]]['date'], event_name
 
             # create folder
             event_dir = folder + '/' + event_name
