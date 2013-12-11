@@ -65,7 +65,7 @@ def sort_import(f, f_full, cant_move, exif):
 
     try: # to move the photo into it's destination
         if os.path.exists(os.path.join(month_dir, f)):
-            print "Duplicate found for", f_full, "(moving to", month_dir + ")."
+            cant_move.append("Duplicate found for", f_full, "(moving to", month_dir + ").")
         elif f_full != os.path.join(month_dir, f):
             os.renames(f_full, os.path.join(month_dir, f))
             if month_dir not in modified_folders: # remember what folders have new stuff
@@ -107,7 +107,7 @@ def get_data(f, f_full, data, exif):
         'gps': gpsinfo
     })
 
-modified_folders = subdirs
+# modified_folders = subdirs # uncomment for testing or resetting all events.
 
 if modified_folders:
     print
