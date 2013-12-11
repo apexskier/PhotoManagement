@@ -8,7 +8,7 @@ import urllib2, json
 
 import_folder = 'Import'
 export_folder = 'Photos'
-allowedExts = ['jpg', 'tiff', 'jpeg']
+allowedExts = ['jpg', 'jpeg', 'tiff', 'tif', 'gif', 'png']
 
 pp = pprint.PrettyPrinter(indent=4)
 def get_exif_data(fname):
@@ -64,7 +64,7 @@ def sort_import(f, f_full, cant_move, exif):
     month_dir = os.path.join(year_dir, str(exif['DateTimeOriginal'].month) + '-' + exif['DateTimeOriginal'].strftime('%B')) # months named like: 6-June
 
     if os.path.exists(os.path.join(month_dir, f)):
-        cant_move.append("Duplicate found for " + f_full + " (moving to " + month_dir + ").")
+        cant_move.append("Duplicate name for " + f_full + " (moving to " + month_dir + ").")
     else:
         try: # to move the photo into it's destination
             if f_full != os.path.join(month_dir, f):
