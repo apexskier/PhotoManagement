@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os, pprint, sys, time
+import os, pprint, sys, time, shutil
 from datetime import datetime
 from PIL import Image
 from PIL import ExifTags
@@ -38,18 +38,19 @@ def loop_through_dir(folder, function):
         f_len = len(filenames) - 1
         for i, f in enumerate(filenames): # loop through files in import dir
             fileName, fileExt = os.path.splitext(f)
+            f_full = os.path.join(root, f)
+            exif = None
             if not f.startswith('.') and fileExt.lower()[1:] in allowedExts: # skip hidden files and only process allowed extensions
-                f_full = os.path.join(root, f)
                 exif = get_exif_data(f_full) # get exif data
 
-            function(f, f_full, output, exif)
+                function(f, f_full, output, exif)
 
-            if f_len > 0:
-                sys.stdout.flush()
-                percent_done = float(i) / f_len
-                width = 40
-                done = int(percent_done * width)
-                sys.stdout.write("\r|{}>{}| {:.0f}%".format('-' * done, ' ' * (width - done - 1), percent_done * 100))
+                if f_len > 0:
+                    percent_done = float(i) / f_len
+                    width = 40
+                    done = int(percent_done * width)
+                    sys.stdout.write("\r|{}>{}| {:.0f}%".format('-' * done, ' ' * (width - done - 1), percent_done * 100))
+                    sys.stdout.flush()
 
     return output
 
@@ -62,18 +63,22 @@ def sort_import(f, f_full, cant_move, exif):
     year_dir = os.path.join(export_folder, str(exif['DateTimeOriginal'].year))
     month_dir = os.path.join(year_dir, str(exif['DateTimeOriginal'].month) + '-' + exif['DateTimeOriginal'].strftime('%B')) # months named like: 6-June
 
-    # make sure folders that the photo's supposed to go in exist.
-    if not os.path.exists(year_dir):
-        os.makedirs(year_dir)
-    if not os.path.exists(month_dir):
-        os.makedirs(month_dir)
-
     try: # to move the photo into it's destination
-        os.rename(f_full, os.path.join(month_dir, f))
-        if month_dir not in modified_folders: # remember what folders have new stuff
-            modified_folders.append(month_dir)
+        if os.path.exists(os.path.join(month_dir, f)):
+            print "Duplicate found for", f_full, "(moving to", month_dir + ")."
+        elif f_full != os.path.join(month_dir, f):
+            os.renames(f_full, os.path.join(month_dir, f))
+            if month_dir not in modified_folders: # remember what folders have new stuff
+                modified_folders.append(month_dir)
     except:
         cant_move.append(f_full)
+
+# remove empty folders
+for root, dirs, filenames in os.walk(import_folder):
+    for d in dirs:
+        dirlist = os.listdir(os.path.join(root, d))
+        if not dirlist or dirlist == ['.DS_Store']:
+            shutil.rmtree(os.path.join(root, d))
 
 cant_move = loop_through_dir(import_folder, sort_import)
 
@@ -125,117 +130,73 @@ for folder in modified_folders:
         # sort by date
         data = sorted(data, key=lambda k: k['date'])
 
+        # find groups
         dates = list(set([v['date'].day for v in data if v['date']])) # generate list of unique days in the month
         def count_days(day): return (day, sum(v['date'].day == day for v in data), sum(v['date'].day < day for v in data))
         dates = sorted(map(count_days, dates), key=lambda k: k[0]) # get a list sorted by date of (day, count of days, starting index)
-        print "Dates", dates
+        dates = [date for date in dates if date[1] > 4]
 
+        if dates:
+            print dates
 
-        # group data
-        for i, p in enumerate(data):
-            if last_dt: # group by consecutive dates
-                if p['date'].day == last_dt.day or p['date'].day == last_dt.day + 1:
-                    dcount += 1
-                else:
-                    if dcount > 5:
-                        last_dt2 = None
-                        days = []
-                        count = 0
-                        for j in range(start, start + dcount + 2):
-                            if last_dt2:
-                                if data[j]['date'].day == last_dt2.day:
-                                    count += 1
-                                else:
-                                    if count and count < 3:
-                                        days.append((j - count - 1, j - 1))
-                                        count = 0
-                            last_dt2 = data[j]['date']
-                        if count and count < 3:
-                            days.append((j - count - 1, j - 1))
-
-                        print "days to eliminate:", days
-
-                        groups.append((start, start + dcount + 1))
-
-                    start = i
-                    dcount = 0
-
-            last_dt = p['date']
-        # save groups with more than 5 photos
-        if dcount > 5:
-            groups.append((start, start + dcount))
-
-        if groups:
-            print groups
-
-        # move photos into folders
-        event_ct = 1
-        event_names = []
-        for pair in groups:
-            event_name = str(data[pair[0]]['date'].day)
-            if int(event_name) != data[pair[1]]['date'].day:
-                event_name += '-' + str(data[pair[1]]['date'].day)
-            avg = (pair[0] + pair[1]) / 2
+        for group in dates:
+            event_name = str(group[0])
 
             # create a name based on the place
-            for i in range(pair[1] - pair[0] - 1):
-                index = i / 2
-                if i % 2 == 0:
-                    index = -i / 2
-                if data[avg + index]['gps'] and 'GPSLatitude' in data[avg + index]['gps']:
-                    lat = data[avg + index]['gps']['GPSLatitude'][0][0] + \
-                          data[avg + index]['gps']['GPSLatitude'][1][0] / 60.0 + \
-                          data[avg + index]['gps']['GPSLatitude'][2][0] / 360000.0
-                    lng = data[avg + index]['gps']['GPSLongitude'][0][0] + \
-                          data[avg + index]['gps']['GPSLongitude'][1][0] / 60.0 + \
-                          data[avg + index]['gps']['GPSLongitude'][2][0] / 360000.0
-                    if str(data[avg + index]['gps']['GPSLatitudeRef']) == 'S':
+            for i in range(group[2], group[2] + group[1]):
+                if data[i]['gps'] and 'GPSLatitude' in data[i]['gps']:
+                    lat = data[i]['gps']['GPSLatitude'][0][0] + \
+                          data[i]['gps']['GPSLatitude'][1][0] / 60.0 + \
+                          data[i]['gps']['GPSLatitude'][2][0] / 360000.0
+                    lng = data[i]['gps']['GPSLongitude'][0][0] + \
+                          data[i]['gps']['GPSLongitude'][1][0] / 60.0 + \
+                          data[i]['gps']['GPSLongitude'][2][0] / 360000.0
+                    if str(data[i]['gps']['GPSLatitudeRef']) == 'S':
                         lat = -lat
-                    if str(data[avg + index]['gps']['GPSLongitudeRef']) == 'W':
+                    if str(data[i]['gps']['GPSLongitudeRef']) == 'W':
                         lng = -lng
 
                     url = "http://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&sensor=false".format(lat=lat, lng=lng)
-                    json_ = json.load(urllib2.urlopen(url))
+                    try:
+                        json_ = json.load(urllib2.urlopen(url))
+                    except urllib2.HTTPError as e:
+                        print e, url
+                        json_ = {}
+
                     address = ""
                     if json_['results']:
-                        address = str(json_['results'][2]['formatted_address'])
+                        address = json_['results'][1]['formatted_address']
                     else:
                         address = "Unknown Place"
-
-                    if ', USA' in address:
-                        address = address.replace(', USA', '')
+                    address = address.replace(', USA', '')
 
                     event_name += '-' + address
-                    if event_name in event_names:
-                        event_name += ' ' + str(event_ct)
                     break
 
             # create folder
             event_dir = folder + '/' + event_name
-            if not os.path.exists(event_dir):
-                os.makedirs(event_dir)
 
-            # make sure we don't have duplicate folders
-            event_names.append(event_name)
-
-            for i in range(pair[0], pair[1]):
+            for i in range(group[2], group[2] + group[1]):
                 try:
-                    pass
-                    #os.rename(data[i]['path'], event_dir + '/' + data[i]['name'])
+                    if data[i]['path'] != os.path.join(event_dir, data[i]['name']):
+                        os.renames(data[i]['path'], os.path.join(event_dir, data[i]['name']))
                 except:
-                    print "Can't move", data[i]['path']
+                    print "Can't move", data[i]['path'], "to", event_dir + '/' + data[i]['name']
 
-            event_ct += 1
+                percent_done = float(i - group[2]) / group[1]
+                width = 40
+                done = int(percent_done * width)
+                sys.stdout.write("\r|{}>{}| {:.0f}%".format('-' * done, ' ' * (width - done - 1), percent_done * 100))
+                sys.stdout.flush()
 
-        import shutil
         # remove empty folders
         for root, dirs, filenames in os.walk(folder):
             for d in dirs:
-                if os.listdir(os.path.join(root, d)) == ['.DS_Store']:
+                dirlist = os.listdir(os.path.join(root, d))
+                if not dirlist or dirlist == ['.DS_Store']:
                     shutil.rmtree(os.path.join(root, d))
     else:
         print "No photos found in the folder."
-        import shutil
         shutil.rmtree(folder)
 
     print
