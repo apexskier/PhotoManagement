@@ -2,8 +2,7 @@
 
 import os, pprint, sys, time, shutil
 from datetime import datetime
-from PIL import Image
-from PIL import ExifTags
+from PIL import Image, ExifTags
 import urllib2, json
 import known_events
 
@@ -33,10 +32,10 @@ def get_exif_data(fname):
         ret['DateTimeOriginal'] = datetime.fromtimestamp(mtime)
     return ret
 
-def loop_through_dir(folder, function):
+def loop_through_dir(folder, function, bar=False):
     output = []
     for root, dirs, filenames in os.walk(folder):
-        f_len = 0# len(filenames) - 1
+        f_len = len(filenames) - 1
         for i, f in enumerate(filenames): # loop through files in import dir
             fileName, fileExt = os.path.splitext(f)
             f_full = os.path.join(root, f)
@@ -46,7 +45,7 @@ def loop_through_dir(folder, function):
 
                 function(f, f_full, output, exif)
 
-                if f_len > 0:
+                if f_len > 0 and bar:
                     percent_done = float(i) / f_len
                     width = 40
                     done = int(percent_done * width)
@@ -82,15 +81,13 @@ for root, dirs, filenames in os.walk(import_folder):
         if not dirlist or dirlist == ['.DS_Store']:
             shutil.rmtree(os.path.join(root, d))
 
-cant_move = loop_through_dir(import_folder, sort_import)
+cant_move = loop_through_dir(import_folder, sort_import, True)
 
-print
 if cant_move:
     print "Couldn't move the following files:"
     for p in cant_move:
         print p
-    print
-print "Moved photos into month folders."
+print "Done sorting."
 print
 
 # if testing or want to reevaluate all months, use the following instead of modified_folders
@@ -102,6 +99,7 @@ def get_data(f, f_full, data, exif):
         for key, val in exif['GPSInfo'].iteritems():
             decode = ExifTags.GPSTAGS.get(key, key)
             gpsinfo[decode] = val
+
     data.append({
         'path': f_full,
         'name': f,
@@ -112,46 +110,75 @@ def get_data(f, f_full, data, exif):
 modified_folders = subdirs # uncomment for testing or resetting all events.
 
 if modified_folders:
-    print
     print "Organizing folders with new contents."
     print
 # organize folders that have new contents
 for folder in modified_folders:
-    print folder
+    #print folder
+    #print "-----------------"
     # get data for each file
     data = loop_through_dir(folder, get_data)
-    if len(data) > 1:
-        print
     if data:
         # pp.pprint(data)
-        groups = []
-        last_dt = None
-        dcount = 0
-        start = 0
 
         # sort by date
         data = sorted(data, key=lambda k: k['date'])
 
         # find groups
-        dates = list(set([v['date'].day for v in data if v['date']])) # generate list of unique days in the month
+        groups = list(set([v['date'].day for v in data if v['date']])) # generate list of unique days in the month
         def count_days(day): return (day, sum(v['date'].day == day for v in data), sum(v['date'].day < day for v in data))
-        dates = sorted(map(count_days, dates), key=lambda k: k[0]) # get a list sorted by date of (day, count of days, starting index)
-        dates = [date for date in dates if date[1] > 4]
+        groups = sorted(map(count_days, groups), key=lambda k: k[0]) # get a list sorted by date of (day, count of days, starting index)
+        groups = [date for date in groups if date[1] > 4]
 
-        for group in dates:
+        # combine groups
+        temp_groups = []
+        len_groups = len(groups)
+        i = 0
+        while i < len_groups:
+            group = groups[i]
+            count = group[1]
+            while i < len_groups - 1 and groups[i][0] == groups[i + 1][0] - 1:
+                count += groups[i + 1][1]
+                i += 1
+            temp_groups.append((group[0], count, group[2], groups[i][0]))
+            i += 1
+        groups = temp_groups
+
+        for group in groups:
             event_name = str(group[0])
+            if group[0] != group[3]:
+                event_name += '-' + str(group[3])
 
-            event_name = known_events.getHoliday(data[group[2]]['date']) or event_name
-            if type(event_name) == tuple:
-                age = data[group[2]]['date'].year - event_name[1]
-                if age == 0:
-                    event_name = event_name[0] + "'s Birthday"
-                else:
-                    if 4 <= age <= 20 or 24 <= day <= 30:
-                        suffix = "th"
+            holiday = None
+            date = data[group[2]]['date']
+            day = group[3]
+            while not holiday and day >= group[0]:
+                holiday = known_events.getHoliday(datetime(date.year, date.month, day))
+                day -= 1
+
+            if type(holiday) == tuple:
+                event_name += '--'
+                if type(holiday[1]) == int:
+                    age = data[group[2]]['date'].year - holiday[1]
+                    if age == 0:
+                        event_name = holiday[0] + "'s Birthday"
                     else:
-                        suffix = ["st", "nd", "rd"][age % 10 - 1]
-                    event_name = event_name[0] + "'s " + str(age) + suffix + " Birthday"
+                        if 4 <= age <= 20 or 24 <= day <= 30:
+                            suffix = "th"
+                        else:
+                            suffix = ["st", "nd", "rd"][age % 10 - 1]
+                        event_name = holiday[0] + "'s " + str(age) + suffix + " Birthday"
+                elif type(holiday[1]) == str:
+                    if group[0] == group[1]:
+                        event_name = holiday[0]
+                    else:
+                        event_name += holiday[0] + " " + holiday[1]
+            elif holiday:
+                event_name += '--'
+                if group[0] == group[1]:
+                    event_name = holiday
+                else:
+                    event_name += holiday
 
             # create a name based on the place
             for i in range(group[2], group[2] + group[1]):
@@ -174,19 +201,23 @@ for folder in modified_folders:
                         print e, url
                         json_ = {}
 
-                    address = ""
                     if json_['results']:
                         # print ">>>", url
                         address = json_['results'][1]['formatted_address']
+                        address = address.replace(', USA', '')
+                        event_name += '--' + address
+                        if address == "Unknown Place":
+                            print lat, lng, data[i]['path'], data[i]['name']
+                        break
                     else:
                         address = "Unknown Place"
-                    address = address.replace(', USA', '')
+                        event_name += '--' + address
+                        print lat, lng, data[i]['path'], data[i]['name']
 
-                    event_name += '-' + address
-                    break
 
-            print data[group[2]]['date'], event_name
+            #print data[group[2]]['date'], event_name
 
+            """
             # create folder
             event_dir = folder + '/' + event_name
 
@@ -196,13 +227,7 @@ for folder in modified_folders:
                         os.renames(data[i]['path'], os.path.join(event_dir, data[i]['name']))
                 except:
                     print "Can't move", data[i]['path'], "to", event_dir + '/' + data[i]['name']
-
-                percent_done = float(i - group[2]) / group[1]
-                width = 40
-                done = int(percent_done * width)
-                sys.stdout.write("\r|{}>{}| {:.0f}%".format('-' * done, ' ' * (width - done - 1), percent_done * 100))
-                sys.stdout.flush()
-
+            """
         # remove empty folders
         for root, dirs, filenames in os.walk(folder):
             for d in dirs:
@@ -213,4 +238,4 @@ for folder in modified_folders:
         print "No photos found in the folder."
         shutil.rmtree(folder)
 
-    print
+    #print

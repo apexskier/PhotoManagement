@@ -5,16 +5,16 @@ weekdays = list(calendar.day_abbr)
 
 EVENTS = {
         "1-1": "New Year's",
-        "14-2": "Valentine's",
-        "3Mon-2": "Presidents' Day", # weekend
+        "14-2": "Valentine's Day",
+        "3Mon-2": ("Presidents' Day", "Weekend"),
         "17-3": "St. Patrick's Day",
         "2Sun-5": "Mothers' Day",
         "3Sun-6": "Father's Day",
-        "4-7": "Fourth of July",
-        "1Mon-9": "Labor Day", # weekend
-        "31-10": "Halloween", # weekend
-        "11-11": "Veterans Day",
-        "4Thu-11": "Thanksgiving", #weekend
+        "4-7": ("Fourth of July", "Weekend"),
+        "1Mon-9": ("Labor Day", "Weekend"),
+        "31-10": "Halloween",
+        "11-11": ("Veterans Day", "Weekend"),
+        "4Thu-11": ("Thanksgiving", "Break"),
         "24-12": "Christmas Eve",
         "25-12": "Christmas",
         "31-12": "New Year's Eve"
