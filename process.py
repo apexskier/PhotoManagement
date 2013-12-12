@@ -161,13 +161,13 @@ for folder in modified_folders:
                 if type(holiday[1]) == int:
                     age = data[group[2]]['date'].year - holiday[1]
                     if age == 0:
-                        event_name = holiday[0] + "'s Birthday"
+                        event_name += holiday[0] + "'s Birthday"
                     else:
                         if 4 <= age <= 20 or 24 <= day <= 30:
                             suffix = "th"
                         else:
                             suffix = ["st", "nd", "rd"][age % 10 - 1]
-                        event_name = holiday[0] + "'s " + str(age) + suffix + " Birthday"
+                        event_name += holiday[0] + "'s " + str(age) + suffix + " Birthday"
                 elif type(holiday[1]) == str:
                     if group[0] == group[1]:
                         event_name = holiday[0]
@@ -183,12 +183,20 @@ for folder in modified_folders:
             # create a name based on the place
             for i in range(group[2], group[2] + group[1]):
                 if data[i]['gps'] and 'GPSLatitude' in data[i]['gps']:
-                    lat = data[i]['gps']['GPSLatitude'][0][0] + \
-                          data[i]['gps']['GPSLatitude'][1][0] / 60.0 + \
-                          data[i]['gps']['GPSLatitude'][2][0] / 360000.0
-                    lng = data[i]['gps']['GPSLongitude'][0][0] + \
-                          data[i]['gps']['GPSLongitude'][1][0] / 60.0 + \
-                          data[i]['gps']['GPSLongitude'][2][0] / 360000.0
+                    # location data is stored like:
+                    # ...
+                    # 'GPSLatitude': (
+                    #         ({deg}, {multiplier}),
+                    #         ({min}, {mulitplier}),
+                    #         ({sec}, {mulitplier})
+                    #     ),
+                    # ...
+                    lat = data[i]['gps']['GPSLatitude'][0][0] / data[i]['gps']['GPSLatitude'][0][1] + \
+                          data[i]['gps']['GPSLatitude'][1][0] / (60.0 * data[i]['gps']['GPSLatitude'][1][1]) + \
+                          data[i]['gps']['GPSLatitude'][2][0] / (3600.0 * data[i]['gps']['GPSLatitude'][2][1])
+                    lng = data[i]['gps']['GPSLongitude'][0][0] / data[i]['gps']['GPSLongitude'][0][1] + \
+                          data[i]['gps']['GPSLongitude'][1][0] / (60.0 * data[i]['gps']['GPSLongitude'][1][1]) + \
+                          data[i]['gps']['GPSLongitude'][2][0] / (3600.0 * data[i]['gps']['GPSLongitude'][2][1])
                     if str(data[i]['gps']['GPSLatitudeRef']) == 'S':
                         lat = -lat
                     if str(data[i]['gps']['GPSLongitudeRef']) == 'W':
@@ -209,15 +217,12 @@ for folder in modified_folders:
                         if address == "Unknown Place":
                             print lat, lng, data[i]['path'], data[i]['name']
                         break
-                    else:
-                        address = "Unknown Place"
-                        event_name += '--' + address
-                        print lat, lng, data[i]['path'], data[i]['name']
+                    #else:
+                        #print lat, lng, data[i]['path'], data[i]['name']
 
 
-            #print data[group[2]]['date'], event_name
+            print data[group[2]]['date'], event_name
 
-            """
             # create folder
             event_dir = folder + '/' + event_name
 
@@ -227,7 +232,7 @@ for folder in modified_folders:
                         os.renames(data[i]['path'], os.path.join(event_dir, data[i]['name']))
                 except:
                     print "Can't move", data[i]['path'], "to", event_dir + '/' + data[i]['name']
-            """
+
         # remove empty folders
         for root, dirs, filenames in os.walk(folder):
             for d in dirs:
