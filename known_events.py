@@ -3,6 +3,18 @@ from datetime import datetime, timedelta, date
 
 weekdays = list(calendar.day_abbr)
 
+# Add your own holidays here. I keep mine down to the ones that I might
+# actually use, so I don't get ones added I don't need.
+#
+# Formats for keys, by example:
+#   22-7 = 22nd of July
+#   2Wed-8 = The second Wednesday of August
+#
+# Formats for values:
+#   Specify a string to be used for the name of the event.
+#     or
+#   Specify a tuple. The first value will be the name of the event, followed by
+#   the second if the event spans multiple days.
 EVENTS = {
         "1-1": "New Year's",
         "14-2": "Valentine's Day",
@@ -21,6 +33,12 @@ EVENTS = {
     }
 event_re = '((?P<wdn>\d{1,2})(?P<wd>Mon|Tue|Wed|Thu|Fri|Sat|Sun)|(?P<d>\d{1,2}))-(?P<m>\d{1,2})'
 
+# Keys should be dates as zero padded day-month-year (simplifies date parsing)
+# Value should be the name of the person. Events will be "name's xth birthday".
+#
+# TODO: Add support for other annual events with a count such as anniversaries.
+#       Format will be (name(s), event). Ex ("Bob", "Birthday"), ("Karen and
+#       Jim", "Anniversary")
 BIRTHDAYS = {
         "16-07-1992": "Cameron and Emily",
         "04-09-1994": "Jake",
