@@ -107,7 +107,7 @@ def get_data(f, f_full, data, exif):
         'gps': gpsinfo
     })
 
-modified_folders = subdirs # uncomment for testing or resetting all events.
+# modified_folders = subdirs # uncomment for testing or resetting all events.
 
 if modified_folders:
     print "Organizing folders with new contents."

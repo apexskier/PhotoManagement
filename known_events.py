@@ -1,3 +1,5 @@
+#!/bin/python
+
 import re, calendar
 from datetime import datetime, timedelta, date
 
