@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import os, pprint, sys, time, shutil
+import os, sys, time, shutil
 from datetime import datetime
 from PIL import Image, ExifTags
 import urllib2, json
@@ -10,7 +10,6 @@ import_folder = 'Import'
 export_folder = 'Photos'
 allowedExts = ['jpg', 'jpeg', 'tiff', 'tif', 'gif', 'png']
 
-pp = pprint.PrettyPrinter(indent=4)
 def get_exif_data(fname):
     # Get embedded EXIF data from image file.
     ret = {}
@@ -119,8 +118,6 @@ for folder in modified_folders:
     # get data for each file
     data = loop_through_dir(folder, get_data)
     if data:
-        # pp.pprint(data)
-
         # sort by date
         data = sorted(data, key=lambda k: k['date'])
 
@@ -242,5 +239,3 @@ for folder in modified_folders:
     else:
         print "No photos found in the folder."
         shutil.rmtree(folder)
-
-    #print
