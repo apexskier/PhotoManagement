@@ -1,10 +1,9 @@
 ## Sorts my photos.
 
-Run `run.sh` to sort any photos in a folder named Import in the same folder as
-the script.  You can run `setup_directories.sh` to create the Import folder.
-Photos will be moved into the Photos folder and sorted by month and year. The
-script will try to find groups in the folders that get new images, and name
-them by their location and holiday.
+Run `run.sh` to sort any photos in a folder named Import a folder named Photos.
+You can run `setup_directories.sh` to create the proper folders. Photos will be
+sorted by month and year. The script will try to find groups in the folders
+that get new images, and name them by their location and holiday.
 
 Holidays are found using the `known_events.py` module. Supports holidays that
 fall on specific days (e.g. 14th of February, or nth &lt;day&gt; of
@@ -28,7 +27,12 @@ Example directory structure after running...
     └── 2013
         ├── 1-January
         │   ├── img1.jpg
-        │   └── img2.jpg
+        │   ├── img2.jpg
+        │   └── 1-New Year's
+        │       ├── img25.jpg
+        │       ├── img26.jpg
+        │       ├── img27.jpg
+        │       └── img28.jpg
         ├── 2-February
         │   ├── img3.jpg
         │   ├── img4.jpg
