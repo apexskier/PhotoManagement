@@ -7,8 +7,9 @@ script will try to find groups in the folders that get new images, and name
 them by their location and holiday.
 
 Holidays are found using the `known_events.py` module. Supports holidays that
-fall on specific days (e.g. 14th of February, or nth &gt;day&lt; of <month> (e.g. 3rd
-Thursday of November). Also supports specified birthdays, and Easter.
+fall on specific days (e.g. 14th of February, or nth &lt;day&gt; of
+&lt;month&gt; (e.g. 3rd Thursday of November). Also supports specified
+birthdays, and Easter.
 
 Example dir structure after running...
 
