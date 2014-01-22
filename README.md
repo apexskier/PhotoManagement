@@ -1,11 +1,14 @@
 ## Sorts my photos.
 
-Run the python script (or run.sh) to sort any photos in a folder named Import in the same folder as the script.
-You can run setup.sh to create the Import folder. Photos will be moved into the Photos folder in folders named
-by month and folders named by year. The script will try to find groups in the folders that get new images,
-and name them by their location and holiday (if it finds one).
+Run `run.sh` to sort any photos in a folder named Import in the same folder as
+the script.  You can run `setup_directories.sh` to create the Import folder.
+Photos will be moved into the Photos folder and sorted by month and year. The
+script will try to find groups in the folders that get new images, and name
+them by their location and holiday.
 
-Holidays are found using the known_events.py module. Supports holidays that fall on specific days (e.g. 14th of February, or nth <day> of <month> (e.g. 3rd Thursday of November). Also supports specified birthdays, and Easter.
+Holidays are found using the `known_events.py` module. Supports holidays that
+fall on specific days (e.g. 14th of February, or nth &gt;day&lt; of <month> (e.g. 3rd
+Thursday of November). Also supports specified birthdays, and Easter.
 
 Example dir structure after running...
 
