@@ -214,9 +214,6 @@ for folder in modified_folders:
                         if address == "Unknown Place":
                             print lat, lng, data[i]['path'], data[i]['name']
                         break
-                    #else:
-                        #print lat, lng, data[i]['path'], data[i]['name']
-
 
             print data[group[2]]['date'], event_name
 

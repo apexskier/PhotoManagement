@@ -10,6 +10,9 @@ fall on specific days (e.g. 14th of February, or nth &lt;day&gt; of
 &lt;month&gt; (e.g. 3rd Thursday of November). Also supports specified
 birthdays, and Easter.
 
+Locations are found using gps exif data and google's location api. To disable this functionality
+remove lines 180 to 216 of App/process.py.
+
 Will sort the following file extentions: .jpg, .jpeg, .tiff, .tif, .gif, .png.
 
 Duplicate filenames will be skipped, and a notice will be printed.
