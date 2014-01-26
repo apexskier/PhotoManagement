@@ -1,29 +1,33 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import os, sys, time, shutil
 from datetime import datetime
 from PIL import Image, ExifTags
-import urllib2, json
+import urllib3, json
 import known_events
 
-import_folder = 'Import'
-export_folder = 'Photos'
-allowedExts = ['jpg', 'jpeg', 'tiff', 'tif', 'gif', 'png']
+import_folder = '../Import'
+export_folder = '../Photos'
+imgExts = ['jpg', 'jpeg', 'tiff', 'tif', 'gif', 'png']
+vidExts = ['mov', 'm4v', '3gp']
+allowedExts = imgExts + vidExts
 
-def get_exif_data(fname):
-    # Get embedded EXIF data from image file.
+def get_exif_data(fname, fileExt):
     ret = {}
-    try:
-        img = Image.open(fname)
-        if hasattr( img, '_getexif' ):
-            exifinfo = img._getexif()
-            if exifinfo != None:
-                for tag, value in exifinfo.items():
-                    decoded = ExifTags.TAGS.get(tag, tag)
-                    ret[decoded] = value
-    except IOError:
-        print 'IOERROR ' + fname
-    # make sure photo date exists, fall back to file creation date
+    if fileExt in imgExts:
+        # Get embedded EXIF data from image file.
+        try:
+            img = Image.open(fname)
+            if hasattr( img, '_getexif' ):
+                exifinfo = img._getexif()
+                if exifinfo != None:
+                    for tag, value in exifinfo.items():
+                        decoded = ExifTags.TAGS.get(tag, tag)
+                        ret[decoded] = value
+        except IOError:
+            print("[Error] Couldn't open image: " + fname)
+
+    # Make sure photo date exists, fall back to file creation date.
     if 'DateTimeOriginal' in ret:
         ret['DateTimeOriginal'] = datetime.strptime(ret['DateTimeOriginal'], "%Y:%m:%d %H:%M:%S")
     else:
@@ -35,13 +39,17 @@ def loop_through_dir(folder, function, bar=False):
     output = []
     for root, dirs, filenames in os.walk(folder):
         f_len = len(filenames) - 1
-        for i, f in enumerate(filenames): # loop through files in import dir
+        errs = []
+        for i, f in enumerate(filenames): # Loop through files in directory.
             fileName, fileExt = os.path.splitext(f)
+            fileExt = fileExt.lower()[1:]
             f_full = os.path.join(root, f)
             exif = None
-            if not f.startswith('.') and fileExt.lower()[1:] in allowedExts: # skip hidden files and only process allowed extensions
-                exif = get_exif_data(f_full) # get exif data
+            # Skip hidden files and only process allowed extensions.
+            if not f.startswith('.') and fileExt in allowedExts:
+                exif = get_exif_data(f_full, fileExt) # get exif data
 
+                # Do something with files.
                 function(f, f_full, output, exif)
 
                 if f_len > 0 and bar:
@@ -49,13 +57,15 @@ def loop_through_dir(folder, function, bar=False):
                     width = 40
                     done = int(percent_done * width)
                     sys.stdout.write("\r|{}>{}| {:.0f}%".format('-' * done, ' ' * (width - done - 1), percent_done * 100))
-                    sys.stdout.flush()
+            elif not f.startswith('.'):
+                errs.append("Found a random file {:s}".format(f_full))
+        print(*errs, sep='\n')
 
     return output
 
 modified_folders = []
 
-print "Sorting new photos."
+print("Moving photos into years/months.")
 
 # move files to month folders
 def sort_import(f, f_full, cant_move, exif):
@@ -73,166 +83,160 @@ def sort_import(f, f_full, cant_move, exif):
         except:
             cant_move.append(f_full)
 
-# remove empty folders
+cant_move = loop_through_dir(import_folder, sort_import, True)
+
+if cant_move:
+    print("Couldn't move the following files:")
+    print(*cant_move, sep='\n')
+    print
+
+# Remove empty folders
 for root, dirs, filenames in os.walk(import_folder):
     for d in dirs:
         dirlist = os.listdir(os.path.join(root, d))
         if not dirlist or dirlist == ['.DS_Store']:
             shutil.rmtree(os.path.join(root, d))
 
-cant_move = loop_through_dir(import_folder, sort_import, True)
-
-if cant_move:
-    print "Couldn't move the following files:"
-    for p in cant_move:
-        print p
-print "Done sorting."
-print
-
-# if testing or want to reevaluate all months, use the following instead of modified_folders
-subdirs = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
-
-def get_data(f, f_full, data, exif):
-    gpsinfo = {}
-    if 'GPSInfo' in exif:
-        for key, val in exif['GPSInfo'].iteritems():
-            decode = ExifTags.GPSTAGS.get(key, key)
-            gpsinfo[decode] = val
-
-    data.append({
-        'path': f_full,
-        'name': f,
-        'date': exif['DateTimeOriginal'],
-        'gps': gpsinfo
-    })
-
-# modified_folders = subdirs # uncomment for testing or resetting all events.
+# If testing or resortting everything, use the following line.
+# modified_folders = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
 
 if modified_folders:
-    print "Organizing folders with new contents."
-    print
-# organize folders that have new contents
-for folder in modified_folders:
-    #print folder
-    #print "-----------------"
-    # get data for each file
-    data = loop_through_dir(folder, get_data)
-    if data:
-        # sort by date
-        data = sorted(data, key=lambda k: k['date'])
+    print("Organizing folders with new contents.")
 
-        # find groups
-        groups = list(set([v['date'].day for v in data if v['date']])) # generate list of unique days in the month
-        def count_days(day): return (day, sum(v['date'].day == day for v in data), sum(v['date'].day < day for v in data))
-        groups = sorted(map(count_days, groups), key=lambda k: k[0]) # get a list sorted by date of (day, count of days, starting index)
-        groups = [date for date in groups if date[1] > 4]
+    def get_data(f, f_full, data, exif):
+        gpsinfo = {}
+        if 'GPSInfo' in exif:
+            for key, val in exif['GPSInfo'].iteritems():
+                decode = ExifTags.GPSTAGS.get(key, key)
+                gpsinfo[decode] = val
 
-        # combine groups
-        temp_groups = []
-        len_groups = len(groups)
-        i = 0
-        while i < len_groups:
-            group = groups[i]
-            count = group[1]
-            while i < len_groups - 1 and groups[i][0] == groups[i + 1][0] - 1:
-                count += groups[i + 1][1]
+        data.append({
+            'path': f_full,
+            'name': f,
+            'date': exif['DateTimeOriginal'],
+            'gps': gpsinfo
+        })
+
+    for folder in modified_folders:
+        #print folder
+        #print "-----------------"
+        # get data for each file
+        data = loop_through_dir(folder, get_data)
+        if data:
+            # sort by date
+            data = sorted(data, key=lambda k: k['date'])
+
+            # find groups
+            groups = list(set([v['date'].day for v in data if v['date']])) # generate list of unique days in the month
+            def count_days(day): return (day, sum(v['date'].day == day for v in data), sum(v['date'].day < day for v in data))
+            groups = sorted(map(count_days, groups), key=lambda k: k[0]) # get a list sorted by date of (day, count of days, starting index)
+            groups = [date for date in groups if date[1] > 4]
+
+            # combine groups
+            temp_groups = []
+            len_groups = len(groups)
+            i = 0
+            while i < len_groups:
+                group = groups[i]
+                count = group[1]
+                while i < len_groups - 1 and groups[i][0] == groups[i + 1][0] - 1:
+                    count += groups[i + 1][1]
+                    i += 1
+                temp_groups.append((group[0], count, group[2], groups[i][0]))
                 i += 1
-            temp_groups.append((group[0], count, group[2], groups[i][0]))
-            i += 1
-        groups = temp_groups
+            groups = temp_groups
 
-        for group in groups:
-            event_name = str(group[0])
-            if group[0] != group[3]:
-                event_name += '-' + str(group[3])
+            for group in groups:
+                event_name = str(group[0])
+                if group[0] != group[3]:
+                    event_name += '-' + str(group[3])
 
-            holiday = None
-            date = data[group[2]]['date']
-            day = group[3]
-            while not holiday and day >= group[0]:
-                holiday = known_events.getHoliday(datetime(date.year, date.month, day))
-                day -= 1
+                holiday = None
+                date = data[group[2]]['date']
+                day = group[3]
+                while not holiday and day >= group[0]:
+                    holiday = known_events.getHoliday(datetime(date.year, date.month, day))
+                    day -= 1
 
-            if type(holiday) == tuple:
-                event_name += '--'
-                if type(holiday[1]) == int:
-                    age = data[group[2]]['date'].year - holiday[1]
-                    if age == 0:
-                        event_name += holiday[0] + "'s Birthday"
-                    else:
-                        if 4 <= age <= 20 or 24 <= day <= 30:
-                            suffix = "th"
+                if type(holiday) == tuple:
+                    event_name += '--'
+                    if type(holiday[1]) == int:
+                        age = data[group[2]]['date'].year - holiday[1]
+                        if age == 0:
+                            event_name += holiday[0] + "'s Birthday"
                         else:
-                            suffix = ["st", "nd", "rd"][age % 10 - 1]
-                        event_name += holiday[0] + "'s " + str(age) + suffix + " Birthday"
-                elif type(holiday[1]) == str:
+                            if 4 <= age <= 20 or 24 <= day <= 30:
+                                suffix = "th"
+                            else:
+                                suffix = ["st", "nd", "rd"][age % 10 - 1]
+                            event_name += holiday[0] + "'s " + str(age) + suffix + " Birthday"
+                    elif type(holiday[1]) == str:
+                        if group[0] == group[1]:
+                            event_name = holiday[0]
+                        else:
+                            event_name += holiday[0] + " " + holiday[1]
+                elif holiday:
+                    event_name += '--'
                     if group[0] == group[1]:
-                        event_name = holiday[0]
+                        event_name = holiday
                     else:
-                        event_name += holiday[0] + " " + holiday[1]
-            elif holiday:
-                event_name += '--'
-                if group[0] == group[1]:
-                    event_name = holiday
-                else:
-                    event_name += holiday
+                        event_name += holiday
 
-            # create a name based on the place
-            for i in range(group[2], group[2] + group[1]):
-                if data[i]['gps'] and 'GPSLatitude' in data[i]['gps']:
-                    # location data is stored like:
-                    # ...
-                    # 'GPSLatitude': (
-                    #         ({deg}, {multiplier}),
-                    #         ({min}, {mulitplier}),
-                    #         ({sec}, {mulitplier})
-                    #     ),
-                    # ...
-                    lat = data[i]['gps']['GPSLatitude'][0][0] / data[i]['gps']['GPSLatitude'][0][1] + \
-                          data[i]['gps']['GPSLatitude'][1][0] / (60.0 * data[i]['gps']['GPSLatitude'][1][1]) + \
-                          data[i]['gps']['GPSLatitude'][2][0] / (3600.0 * data[i]['gps']['GPSLatitude'][2][1])
-                    lng = data[i]['gps']['GPSLongitude'][0][0] / data[i]['gps']['GPSLongitude'][0][1] + \
-                          data[i]['gps']['GPSLongitude'][1][0] / (60.0 * data[i]['gps']['GPSLongitude'][1][1]) + \
-                          data[i]['gps']['GPSLongitude'][2][0] / (3600.0 * data[i]['gps']['GPSLongitude'][2][1])
-                    if str(data[i]['gps']['GPSLatitudeRef']) == 'S':
-                        lat = -lat
-                    if str(data[i]['gps']['GPSLongitudeRef']) == 'W':
-                        lng = -lng
+                # create a name based on the place
+                for i in range(group[2], group[2] + group[1]):
+                    if data[i]['gps'] and 'GPSLatitude' in data[i]['gps']:
+                        # location data is stored like:
+                        # ...
+                        # 'GPSLatitude': (
+                        #         ({deg}, {multiplier}),
+                        #         ({min}, {mulitplier}),
+                        #         ({sec}, {mulitplier})
+                        #     ),
+                        # ...
+                        lat = data[i]['gps']['GPSLatitude'][0][0] / data[i]['gps']['GPSLatitude'][0][1] + \
+                              data[i]['gps']['GPSLatitude'][1][0] / (60.0 * data[i]['gps']['GPSLatitude'][1][1]) + \
+                              data[i]['gps']['GPSLatitude'][2][0] / (3600.0 * data[i]['gps']['GPSLatitude'][2][1])
+                        lng = data[i]['gps']['GPSLongitude'][0][0] / data[i]['gps']['GPSLongitude'][0][1] + \
+                              data[i]['gps']['GPSLongitude'][1][0] / (60.0 * data[i]['gps']['GPSLongitude'][1][1]) + \
+                              data[i]['gps']['GPSLongitude'][2][0] / (3600.0 * data[i]['gps']['GPSLongitude'][2][1])
+                        if str(data[i]['gps']['GPSLatitudeRef']) == 'S':
+                            lat = -lat
+                        if str(data[i]['gps']['GPSLongitudeRef']) == 'W':
+                            lng = -lng
 
-                    url = "http://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&sensor=false".format(lat=lat, lng=lng)
+                        url = "http://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&sensor=false".format(lat=lat, lng=lng)
+                        try:
+                            json_ = json.load(urllib2.urlopen(url))
+                        except urllib2.HTTPError as e:
+                            print(e, url)
+                            json_ = {}
+
+                        if json_['results']:
+                            address = json_['results'][1]['formatted_address']
+                            address = address.replace(', USA', '')
+                            event_name += '--' + address
+                            if address == "Unknown Place":
+                                print(lat, lng, data[i]['path'], data[i]['name'])
+                            break # Found a name
+
+                print(data[group[2]]['date'], event_name)
+
+                # create folder
+                event_dir = folder + '/' + event_name
+
+                for i in range(group[2], group[2] + group[1]):
                     try:
-                        json_ = json.load(urllib2.urlopen(url))
-                    except urllib2.HTTPError as e:
-                        print e, url
-                        json_ = {}
+                        if data[i]['path'] != os.path.join(event_dir, data[i]['name']):
+                            os.renames(data[i]['path'], os.path.join(event_dir, data[i]['name']))
+                    except:
+                        print("Can't move", data[i]['path'], "to", event_dir + '/' + data[i]['name'])
 
-                    if json_['results']:
-                        # print ">>>", url
-                        address = json_['results'][1]['formatted_address']
-                        address = address.replace(', USA', '')
-                        event_name += '--' + address
-                        if address == "Unknown Place":
-                            print lat, lng, data[i]['path'], data[i]['name']
-                        break
-
-            print data[group[2]]['date'], event_name
-
-            # create folder
-            event_dir = folder + '/' + event_name
-
-            for i in range(group[2], group[2] + group[1]):
-                try:
-                    if data[i]['path'] != os.path.join(event_dir, data[i]['name']):
-                        os.renames(data[i]['path'], os.path.join(event_dir, data[i]['name']))
-                except:
-                    print "Can't move", data[i]['path'], "to", event_dir + '/' + data[i]['name']
-
-        # remove empty folders
-        for root, dirs, filenames in os.walk(folder):
-            for d in dirs:
-                dirlist = os.listdir(os.path.join(root, d))
-                if not dirlist or dirlist == ['.DS_Store']:
-                    shutil.rmtree(os.path.join(root, d))
-    else:
-        print "No photos found in the folder."
-        shutil.rmtree(folder)
+            # remove empty folders
+            for root, dirs, filenames in os.walk(folder):
+                for d in dirs:
+                    dirlist = os.listdir(os.path.join(root, d))
+                    if not dirlist or dirlist == ['.DS_Store']:
+                        shutil.rmtree(os.path.join(root, d))
+        else:
+            print("No photos found in the folder.")
+            shutil.rmtree(folder)
