@@ -5,12 +5,21 @@ from datetime import datetime
 from PIL import Image, ExifTags
 import urllib3, json
 import known_events
+import argparse
 
-import_folder = '../Import'
-export_folder = '../Photos'
 imgExts = ['jpg', 'jpeg', 'tiff', 'tif', 'gif', 'png']
 vidExts = ['mov', 'm4v', '3gp']
 allowedExts = imgExts + vidExts
+reset = False
+
+parser = argparse.ArgumentParser(description="Sort photos.")
+parser.add_argument('-i', '--import-folder', type=str, required=True, help="Folder to find new photos in.")
+parser.add_argument('-d', '--dest-folder', type=str, required=True, help="Folder to put photos in.")
+parser.add_argument('-r', '--reset', action='store_true')
+args = parser.parse_args()
+import_folder = args.import_folder
+export_folder = args.dest_folder
+reset = args.reset
 
 def get_exif_data(fname, fileExt):
     ret = {}
@@ -56,18 +65,13 @@ def loop_through_dir(folder, function, bar=False):
                     percent_done = float(i) / f_len
                     width = 40
                     done = int(percent_done * width)
-                    sys.stdout.write("\r|{}>{}| {:.0f}%".format('-' * done, ' ' * (width - done - 1), percent_done * 100))
+                    sys.stdout.write("\r|{}>{}| {:3s}%".format('-' * done, ' ' * (width - done), str(int(percent_done * 100))))
             elif not f.startswith('.'):
                 errs.append("Found a random file {:s}".format(f_full))
         if errs: print(*errs, sep='\n')
 
     return output
 
-modified_folders = []
-
-print("Moving photos into years/months.")
-
-# move files to month folders
 def sort_import(f, f_full, cant_move, exif):
     year_dir = os.path.join(export_folder, str(exif['DateTimeOriginal'].year))
     month_dir = os.path.join(year_dir, str(exif['DateTimeOriginal'].month) + '-' + exif['DateTimeOriginal'].strftime('%B')) # months named like: 6-June
@@ -76,19 +80,27 @@ def sort_import(f, f_full, cant_move, exif):
         cant_move.append("Duplicate name for " + f_full + " (moving to " + month_dir + ").")
     else:
         try: # to move the photo into it's destination
-            if f_full != os.path.join(month_dir, f):
-                os.renames(f_full, os.path.join(month_dir, f))
+            dest = os.path.join(month_dir, f)
+            if f_full != dest:
+                os.renames(f_full, dest)
                 if month_dir not in modified_folders: # remember what folders have new stuff
                     modified_folders.append(month_dir)
         except:
             cant_move.append(f_full)
 
+modified_folders = []
+
+print("Moving photos into years/months.\n")
+
+# move files to month folders
+"""
 cant_move = loop_through_dir(import_folder, sort_import, True)
 
 if cant_move:
     print("Couldn't move the following files:")
     print(*cant_move, sep='\n')
     print
+"""
 
 # Remove empty folders
 for root, dirs, filenames in os.walk(import_folder):
@@ -98,11 +110,18 @@ for root, dirs, filenames in os.walk(import_folder):
             shutil.rmtree(os.path.join(root, d))
 
 # If testing or resortting everything, use the following line.
-modified_folders = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 3]
+if reset:
+    modified_folder = []
+    for folder in [os.path.join(export_folder, name) for name in os.listdir(export_folder) if os.path.isdir(os.path.join(export_folder, name))]:
+        modified_folders += [os.path.join(folder, name) for name in os.listdir(folder) if os.path.isdir(os.path.join(folder, name))]
 
 if modified_folders:
-    print("Organizing folders with new contents.")
+    print("Organizing the following folders:")
+    sys.stdout.write(' - ')
+    print(*modified_folders, sep='\n - ')
+    print()
 
+if modified_folders:
     http = urllib3.PoolManager()
 
     def get_data(f, f_full, data, exif):
@@ -119,6 +138,7 @@ if modified_folders:
             'gps': gpsinfo
         })
 
+    print("Creating new events:")
     for folder in modified_folders:
         # get data for each file
         data = loop_through_dir(folder, get_data)
@@ -225,12 +245,13 @@ if modified_folders:
                 # create folder
                 event_dir = folder + '/' + event_name
 
-                print("Creating new event '{:s}' at {:s} ({}).".format(event_name, event_dir, data[group[2]]['date']))
+                print(" - {:s}".format(event_dir.replace(export_folder, '')))
 
                 for i in range(group[2], group[2] + group[1]):
                     try:
-                        if data[i]['path'] != os.path.join(event_dir, data[i]['name']):
-                            os.renames(data[i]['path'], os.path.join(event_dir, data[i]['name']))
+                        dest = os.path.join(event_dir, data[i]['name'])
+                        if data[i]['path'] != dest:
+                            os.renames(data[i]['path'], dest)
                     except:
                         print("Can't move", data[i]['path'], "to", event_dir + '/' + data[i]['name'])
 
