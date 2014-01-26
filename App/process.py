@@ -59,7 +59,7 @@ def loop_through_dir(folder, function, bar=False):
                     sys.stdout.write("\r|{}>{}| {:.0f}%".format('-' * done, ' ' * (width - done - 1), percent_done * 100))
             elif not f.startswith('.'):
                 errs.append("Found a random file {:s}".format(f_full))
-        print(*errs, sep='\n')
+        if errs: print(*errs, sep='\n')
 
     return output
 
@@ -98,15 +98,17 @@ for root, dirs, filenames in os.walk(import_folder):
             shutil.rmtree(os.path.join(root, d))
 
 # If testing or resortting everything, use the following line.
-# modified_folders = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 2]
+modified_folders = [x[0] for x in os.walk(export_folder) if x[0].count('/') == 3]
 
 if modified_folders:
     print("Organizing folders with new contents.")
 
+    http = urllib3.PoolManager()
+
     def get_data(f, f_full, data, exif):
         gpsinfo = {}
         if 'GPSInfo' in exif:
-            for key, val in exif['GPSInfo'].iteritems():
+            for key, val in exif['GPSInfo'].items():
                 decode = ExifTags.GPSTAGS.get(key, key)
                 gpsinfo[decode] = val
 
@@ -118,8 +120,6 @@ if modified_folders:
         })
 
     for folder in modified_folders:
-        #print folder
-        #print "-----------------"
         # get data for each file
         data = loop_through_dir(folder, get_data)
         if data:
@@ -155,7 +155,8 @@ if modified_folders:
                 date = data[group[2]]['date']
                 day = group[3]
                 while not holiday and day >= group[0]:
-                    holiday = known_events.getHoliday(datetime(date.year, date.month, day))
+                    try: holiday = known_events.getHoliday(datetime(date.year, date.month, day))
+                    except ValueError: break
                     day -= 1
 
                 if type(holiday) == tuple:
@@ -193,36 +194,38 @@ if modified_folders:
                         #         ({sec}, {mulitplier})
                         #     ),
                         # ...
-                        lat = data[i]['gps']['GPSLatitude'][0][0] / data[i]['gps']['GPSLatitude'][0][1] + \
-                              data[i]['gps']['GPSLatitude'][1][0] / (60.0 * data[i]['gps']['GPSLatitude'][1][1]) + \
-                              data[i]['gps']['GPSLatitude'][2][0] / (3600.0 * data[i]['gps']['GPSLatitude'][2][1])
-                        lng = data[i]['gps']['GPSLongitude'][0][0] / data[i]['gps']['GPSLongitude'][0][1] + \
-                              data[i]['gps']['GPSLongitude'][1][0] / (60.0 * data[i]['gps']['GPSLongitude'][1][1]) + \
-                              data[i]['gps']['GPSLongitude'][2][0] / (3600.0 * data[i]['gps']['GPSLongitude'][2][1])
-                        if str(data[i]['gps']['GPSLatitudeRef']) == 'S':
-                            lat = -lat
-                        if str(data[i]['gps']['GPSLongitudeRef']) == 'W':
-                            lng = -lng
-
-                        url = "http://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&sensor=false".format(lat=lat, lng=lng)
                         try:
-                            json_ = json.load(urllib2.urlopen(url))
-                        except urllib2.HTTPError as e:
-                            print(e, url)
-                            json_ = {}
+                            lat = data[i]['gps']['GPSLatitude'][0][0] / data[i]['gps']['GPSLatitude'][0][1] + \
+                                  data[i]['gps']['GPSLatitude'][1][0] / (60.0 * data[i]['gps']['GPSLatitude'][1][1]) + \
+                                  data[i]['gps']['GPSLatitude'][2][0] / (3600.0 * data[i]['gps']['GPSLatitude'][2][1])
+                            lng = data[i]['gps']['GPSLongitude'][0][0] / data[i]['gps']['GPSLongitude'][0][1] + \
+                                  data[i]['gps']['GPSLongitude'][1][0] / (60.0 * data[i]['gps']['GPSLongitude'][1][1]) + \
+                                  data[i]['gps']['GPSLongitude'][2][0] / (3600.0 * data[i]['gps']['GPSLongitude'][2][1])
+                            if str(data[i]['gps']['GPSLatitudeRef']) == 'S':
+                                lat = -lat
+                            if str(data[i]['gps']['GPSLongitudeRef']) == 'W':
+                                lng = -lng
 
-                        if json_['results']:
-                            address = json_['results'][1]['formatted_address']
-                            address = address.replace(', USA', '')
-                            event_name += '--' + address
-                            if address == "Unknown Place":
-                                print(lat, lng, data[i]['path'], data[i]['name'])
-                            break # Found a name
+                            url = "http://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&sensor=false".format(lat=lat, lng=lng)
+                            try:
+                                json_ = json.loads(http.request('GET', url).data.decode('utf-8'))
+                            except urllib3.exceptions.HTTPError as e:
+                                print("[Error] urllib3 error for {:s}".format(url), e)
+                                json_ = {}
 
-                print(data[group[2]]['date'], event_name)
+                            if json_['results']:
+                                address = json_['results'][1]['formatted_address']
+                                address = address.replace(', USA', '')
+                                address = address.split(',')[0]
+                                event_name += '--' + address
+                                if address != "Unknown Place":
+                                    break # Found a name
+                        except ZeroDivisionError: pass
 
                 # create folder
                 event_dir = folder + '/' + event_name
+
+                print("Creating new event '{:s}' at {:s} ({}).".format(event_name, event_dir, data[group[2]]['date']))
 
                 for i in range(group[2], group[2] + group[1]):
                     try:

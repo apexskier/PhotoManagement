@@ -68,10 +68,10 @@ def easterDate(year):
 
 def getHoliday(date):
     # check if it's a birthday first
-    for key, val in BIRTHDAYS.iteritems():
+    for key, val in BIRTHDAYS.items():
         if datetime.strptime(key, "%d-%m-%Y").month == date.month and datetime.strptime(key, "%d-%m-%Y").day == date.day:
             return (val, datetime.strptime(key, "%d-%m-%Y").year)
-    for key, val in EVENTS.iteritems():
+    for key, val in EVENTS.items():
         key_match = re.match(event_re, key)
         if key_match:
             if key_match.group('d') and key_match.group('m') and \
