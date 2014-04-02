@@ -7,6 +7,7 @@ import (
     "errors"
     "path/filepath"
     "io/ioutil"
+    "sort"
 
     "github.com/rwcarlsen/goexif/exif"
     "code.google.com/p/go.exp/fsnotify"
@@ -23,19 +24,8 @@ var (
 
 type dataType struct {
     Photos Photos
-    Groups Nodes
-    MinGroups Nodes
+    Times map[int]map[time.Month]map[int]int
 }
-
-type Node struct {
-    First int
-    Last int
-    Groups Nodes
-    Granularity time.Duration
-    Parent *Node
-}
-
-type Nodes []*Node
 
 type Photo struct {
     Path string
@@ -46,6 +36,31 @@ type Photo struct {
 }
 
 type Photos []Photo
+func (slice Photos) Len() int {
+    return len(slice)
+}
+func (slice Photos) Less(i, j int) bool {
+    return slice[i].Date.Before(slice[j].Date)
+}
+func (slice Photos) Swap(i, j int) {
+    slice[i], slice[j] = slice[j], slice[i]
+}
+func (slice Photos) Search(p Photo) int {
+    return sort.Search(slice.Len(), func(i int) bool {
+        return !slice[i].Date.Before(p.Date)
+    })
+}
+
+func InsertPhoto(p Photo) int {
+    i := data.Photos.Search(p)
+    if (i < data.Photos.Len() && i >= 0) && data.Photos[i].Path == p.Path {
+        panic(fmt.Sprintf("inserting duplicate: \n    %v\n    %v", p.Path, data.Photos[i].Path))
+    }
+    data.Photos = append(data.Photos, p) // increase capacity by one
+    copy(data.Photos[i+1:], data.Photos[i:]) // shift latter part of array over
+    data.Photos[i] = p // insert new value
+    return i
+}
 
 func main() {
     importFolder = "Import"
@@ -59,6 +74,8 @@ func main() {
     imgExts = []string{".jpg", ".jpeg", ".tiff", ".tif", ".gif", ".png"}
     //vidExts := []string{".mov", ".m4v", ".3gp"}
     //allExts := append(imgExts, vidExts...)
+
+    data.Times = make(map[int]map[time.Month]map[int]int)
 
     cwd, _ := os.Getwd()
     fmt.Println(cwd)
@@ -170,11 +187,21 @@ func AddPhoto(date time.Time, path string) error {
         Path:path,
     }
 
-    savedPhotos := len(data.Photos)
-    loc := InsertPhoto(photo)
-    if len(data.Photos) == savedPhotos {
-        panic(fmt.Sprintf("%d, %v", loc, "Same photos"))
+    y := date.Year()
+    m := date.Month()
+    d := date.Day()
+    if _, ok := data.Times[y]; !ok {
+        data.Times[y] = make(map[time.Month]map[int]int)
     }
+    if _, ok := data.Times[y][m]; !ok {
+        data.Times[y][m] = make(map[int]int)
+    }
+    if _, ok := data.Times[y][m][d]; !ok {
+        data.Times[y][m][d] = 0
+    }
+    data.Times[y][m][d]++
+
+    loc := InsertPhoto(photo)
     if loc < 0 {
         return errors.New("invalid insert")
     }
@@ -187,57 +214,53 @@ func AddPhoto(date time.Time, path string) error {
 
 func GroupPhoto(loc int) error {
     var p, n int
-    for p = loc; p > 0; p-- {
-        if data.Photos[p].Date.Sub(data.Photos[p-1].Date).Hours() >= 18 {
-            break
-        }
-    }
-    for n = loc; n < len(data.Photos)-1; n++ {
-        if data.Photos[n+1].Date.Sub(data.Photos[n].Date).Hours() >= 18 {
-            break
-        }
-    }
+    date := data.Photos[loc].Date
+    y := date.Year()
+    m := date.Month()
+    d := date.Day()
+    if v, ok := data.Times[y][m][d]; ok {
+        if v > 3 {
+            days := make(map[int]bool)
+            days[d] = true
+            for i := d - 1; i > 0; i-- {
+                if v2, ok := data.Times[y][m][i]; !ok || v2 < 4 {
+                    break
+                }
+                days[i] = true
+            }
+            for i := d + 1; i <= 31; i++ {
+                if v2, ok := data.Times[y][m][i]; !ok || v2 < 4 {
+                    break
+                }
+                days[i] = true
+            }
 
-    if err := MovePhotos(loc, p, n); err != nil {
-        return errors.New("groupphoto: " + err.Error())
+            for p = loc - 1; p > 0; p-- {
+                if v, ok := days[data.Photos[p].Date.Day()]; !ok || !v {
+                    p++
+                    break
+                }
+            }
+            l := len(data.Photos)
+            for n = loc + 1; n < l; n++ {
+                if v, ok := days[data.Photos[n].Date.Day()]; !ok || !v {
+                    n--
+                    break
+                }
+            }
+            if n == l { n-- }
+
+            if err := MovePhotos(loc, p, n); err != nil {
+                return errors.New("groupphoto: " + err.Error())
+            }
+        } else {
+            return MovePhotos(loc, loc, loc)
+        }
+    } else {
+        return fmt.Errorf("no day found: %v", date)
     }
     return nil
 }
-
-// binary search to insert
-/*
-func (gs *Nodes) InsertGroup(g *Node) int {
-    l := len(*gs)
-    if l == 0 {
-        *gs = Nodes{g}
-        return 0
-    }
-    return gs.insertGroup(g, 0, l)
-}
-func (gs *Nodes) insertGroup(g *Node, s, e int) int {
-    if s > e {
-        return -1
-    }
-    if s + 1 == e {
-        if s == 0 {
-            *gs = append(Nodes{g}, *gs...)
-            return 0
-        } else if e == len(*gs) {
-            *gs = append(*gs, g)
-            return e
-        } else {
-            *gs = append(append((*gs)[:s], g), (*gs)[e:]...)
-            return s + 1
-        }
-    }
-    m := (s+e) / 2
-    if g.Last < (*gs)[m].First {
-        return gs.insertGroup(g, s, m)
-    } else {
-        return gs.insertGroup(g, m, e)
-    }
-    return -1
-}*/
 
 func MovePhotos(l, p, n int) error {
     if l > n || l < p {
@@ -249,6 +272,17 @@ func MovePhotos(l, p, n int) error {
         return errors.New("movephotos: " + err.Error())
     }
     if n - p >= 3 {
+        h := ""
+        for i := p; i <= n; i++ {
+            h, err = GetHoliday(data.Photos[i].Date)
+            if err != nil {
+                return err
+            }
+            if h != "" {
+                fmt.Println(h)
+                break
+            }
+        }
         var event string
         fDay := data.Photos[p].Date.Day()
         lDay := data.Photos[n].Date.Day()
@@ -256,6 +290,9 @@ func MovePhotos(l, p, n int) error {
             event = fmt.Sprintf("%d", lDay)
         } else {
             event = fmt.Sprintf("%d-%d", fDay, lDay)
+        }
+        if h != "" {
+            event = event + "--" + h
         }
         dir = filepath.Join(dir, event)
     }
@@ -268,13 +305,20 @@ func MovePhotos(l, p, n int) error {
                 return errors.New("movephotos: mkdir: " + err.Error())
             }
             if _, err := os.Stat(path); err == nil {
-                err = os.Rename(path, tmpDir)
-                if err != nil {
-                    fmt.Printf("%v\n%v\n", path, tmpDir)
-                    fmt.Println(tmpDir == path)
-                    panic(err)
+                count := 1
+                loop:
+                if _, err := os.Stat(tmpDir); os.IsNotExist(err) {
+                    err = os.Rename(path, tmpDir)
+                    if err != nil {
+                        panic(err)
+                    }
+                    data.Photos[i].Path = tmpDir
+                } else {
+                    ext := filepath.Ext(tmpDir)
+                    tmpDir = fmt.Sprintf("%v-%d%v", tmpDir[:len(tmpDir) - len(ext)], count, ext)
+                    count++
+                    goto loop
                 }
-                data.Photos[i].Path = tmpDir
             }
 
             var rmDir = filepath.Dir(path)
@@ -295,7 +339,7 @@ func MovePhotos(l, p, n int) error {
 }
 
 // binary search to insert
-func InsertPhoto(p Photo) int {
+/*func InsertPhoto(p Photo) int {
     l := len(data.Photos)
     if l == 0 {
         data.Photos = Photos{p}
@@ -330,7 +374,7 @@ func insertPhoto(p Photo, s, e int) int {
         return insertPhoto(p, m, e)
     }
     return -1
-}
+}*/
 
 func strIn(a string, list []string) bool {
     for _, b := range list {
