@@ -70,7 +70,7 @@ func InsertPhoto(p Photo) int {
 }
 
 func init() {
-    flag.StringVar(&ConfigPath, "config", "~/.gophotoconfig", "Optional path to Config file.")
+    flag.StringVar(&ConfigPath, "config", os.Getenv("HOME") + "/.gophotoconfig", "Optional path to Config file.")
 }
 
 func main() {
@@ -319,7 +319,6 @@ func MovePhotos(l, p, n int) error {
                 return err
             }
             if h != "" {
-                fmt.Println(h)
                 break
             }
         }
