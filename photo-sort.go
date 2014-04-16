@@ -215,7 +215,6 @@ func ProcessFile(path string, f os.FileInfo) (e error) {
             return fmt.Errorf("couldn't get date for %v: %v", path, err)
         }
         date = s.ModTime()
-        fmt.Println(date)
     }
     return nil
 }
@@ -334,6 +333,9 @@ func MovePhotos(l, p, n int) error {
             event = event + "--" + h
         }
         dir = filepath.Join(dir, event)
+        if h != "" {
+            fmt.Println(dir)
+        }
     }
     for i := p; i <= n; i++ {
         path := data.Photos[i].Path

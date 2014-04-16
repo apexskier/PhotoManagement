@@ -4,13 +4,14 @@ import (
     "fmt"
     "time"
     "regexp"
-    _ "strconv"
+    "strconv"
 )
 
 var (
     format = "2-Jan-2006"
     Events map[string][2]string = make(map[string][2]string)
-    EventRe *regexp.Regexp = regexp.MustCompile(`((?P<wdn>\d{1,2})(?P<wd>Mon|Tue|Wed|Thu|Fri|Sat|Sun)|(?P<d>\d{1,2}))-(?P<m>\d{1,2})`)
+    EventRe1 *regexp.Regexp = regexp.MustCompile(`(\d{1,2})-(\d{1,2})`)
+    EventRe2 *regexp.Regexp = regexp.MustCompile(`(\d{1,2})(Mon|Tue|Wed|Thu|Fri|Sat|Sun)-(\d{1,2})`)
     Birthdays map[time.Time]string = make(map[time.Time]string)
 )
 
@@ -29,6 +30,7 @@ func init() {
     Events["24-12"] = [2]string{"Christmas Eve", ""}
     Events["25-12"] = [2]string{"Christmas", ""}
     Events["31-12"] = [2]string{"New Year's Eve", ""}
+    Events["3-9"] = [2]string{"test event", ""}
 
     t, err := time.Parse(format, "16-Jul-1992")
     if err != nil { panic(err) }
@@ -42,38 +44,38 @@ func init() {
 }
 
 func GetHoliday(date time.Time) (string, error) {
-    //y := date.Year()
+    y := date.Year()
     m := date.Month()
+    sm := fmt.Sprintf("%d", m)
     d := date.Day()
-    //wd := date.Weekday().String()[:3]
+    sd := fmt.Sprintf("%d", d)
+    wd := date.Weekday().String()[:3]
     for k, v := range Birthdays {
         if k.Month() == m && k.Day() == d {
             return fmt.Sprintf("%v's Birthday", v), nil
         }
     }
-    /*()for k, v := range Events {
-        match := EventRe.FindStringSubmatch(k)
-        if len(match) > 0 {
-            if match[2] == string(d) && match[3] == string(m) {
-                return v[0], nil
-            } else if match[1] == wd && match[3] == string(m) {
-                prday := time.Date(y, m, 1, 0, 0, 0, 0, nil)
-                weeks, err := strconv.Atoi(match[0])
-                if err != nil {
-                    return "", fmt.Errorf("getHoliday: %v", err)
-                }
-                adj, err := time.ParseDuration(string((int(date.Weekday() - prday.Weekday()) % 7) + (7 * weeks)) + "h")
-                if err != nil {
-                    return "", fmt.Errorf("getHoliday: %v", err)
-                }
-                prday = prday.Add(adj)
-                if prday.Day() == d && prday.Month() == m {
-                    return v[0], nil
-                }
-            }
-            fmt.Println(match)
+    for k, v := range Events {
+        if match := EventRe1.FindStringSubmatch(k); match != nil && match[1] == sd && match[2] == sm {
+            // 14-3 type
+            fmt.Println("event found:", v[0]);
             return v[0], nil
+        } else if match := EventRe2.FindStringSubmatch(k); match != nil && match[3] == sm && match[2] == wd {
+            // 2Mon-1 type
+            prday := time.Date(y, m, 1, 0, 0, 0, 0, nil)
+            weeks, err := strconv.Atoi(match[1])
+            if err != nil {
+                return "", fmt.Errorf("getHoliday: %v", err)
+            }
+            adj, err := time.ParseDuration(string((int(date.Weekday() - prday.Weekday()) % 7) + (7 * weeks)) + "h")
+            if err != nil {
+                return "", fmt.Errorf("getHoliday: %v", err)
+            }
+            prday = prday.Add(adj)
+            if prday.Day() == d && prday.Month() == m {
+                return v[0], nil
+            }
         }
-    }*/
+    }
     return "", nil
 }
