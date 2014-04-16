@@ -30,7 +30,6 @@ func init() {
     Events["24-12"] = [2]string{"Christmas Eve", ""}
     Events["25-12"] = [2]string{"Christmas", ""}
     Events["31-12"] = [2]string{"New Year's Eve", ""}
-    Events["3-9"] = [2]string{"test event", ""}
 
     t, err := time.Parse(format, "16-Jul-1992")
     if err != nil { panic(err) }
@@ -50,6 +49,10 @@ func GetHoliday(date time.Time) (string, error) {
     d := date.Day()
     sd := fmt.Sprintf("%d", d)
     wd := date.Weekday().String()[:3]
+    here, err := time.LoadLocation("Local")
+    if err != nil {
+        panic("couldn't load local time")
+    }
     for k, v := range Birthdays {
         if k.Month() == m && k.Day() == d {
             return fmt.Sprintf("%v's Birthday", v), nil
@@ -58,18 +61,17 @@ func GetHoliday(date time.Time) (string, error) {
     for k, v := range Events {
         if match := EventRe1.FindStringSubmatch(k); match != nil && match[1] == sd && match[2] == sm {
             // 14-3 type
-            fmt.Println("event found:", v[0]);
             return v[0], nil
         } else if match := EventRe2.FindStringSubmatch(k); match != nil && match[3] == sm && match[2] == wd {
             // 2Mon-1 type
-            prday := time.Date(y, m, 1, 0, 0, 0, 0, nil)
+            prday := time.Date(y, m, 1, 0, 0, 0, 0, here)
             weeks, err := strconv.Atoi(match[1])
             if err != nil {
                 return "", fmt.Errorf("getHoliday: %v", err)
             }
-            adj, err := time.ParseDuration(string((int(date.Weekday() - prday.Weekday()) % 7) + (7 * weeks)) + "h")
+            adj, err := time.ParseDuration(fmt.Sprintf("%dh", (int(date.Weekday() - prday.Weekday()) % 7) + (7 * weeks)))
             if err != nil {
-                return "", fmt.Errorf("getHoliday: %v", err)
+                return "", fmt.Errorf("getHoliday: %v: %s", err, string((int(date.Weekday() - prday.Weekday()) % 7) + (7 * weeks)) + "h")
             }
             prday = prday.Add(adj)
             if prday.Day() == d && prday.Month() == m {

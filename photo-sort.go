@@ -38,6 +38,7 @@ type Photo struct {
     Path string
     Date time.Time
     Groupl int
+    Holiday string
     // contrast
     // color
 }
@@ -220,9 +221,15 @@ func ProcessFile(path string, f os.FileInfo) (e error) {
 }
 
 func AddPhoto(date time.Time, path string) error {
+    h, err := GetHoliday(date)
+    if err != nil {
+        return err
+    }
     photo := Photo{
         Date:date,
         Path:path,
+        Holiday:h,
+        // TODO: Add holiday here
     }
 
     y := date.Year()
@@ -311,16 +318,6 @@ func MovePhotos(l, p, n int) error {
         return errors.New("movephotos: " + err.Error())
     }
     if n - p >= 3 {
-        h := ""
-        for i := p; i <= n; i++ {
-            h, err = GetHoliday(data.Photos[i].Date)
-            if err != nil {
-                return err
-            }
-            if h != "" {
-                break
-            }
-        }
         var event string
         fDay := data.Photos[p].Date.Day()
         lDay := data.Photos[n].Date.Day()
@@ -329,13 +326,13 @@ func MovePhotos(l, p, n int) error {
         } else {
             event = fmt.Sprintf("%d-%d", fDay, lDay)
         }
-        if h != "" {
-            event = event + "--" + h
+        for i := p; i <= n; i++ {
+            if data.Photos[i].Holiday != "" {
+                event = event + "--" + data.Photos[i].Holiday
+                break
+            }
         }
         dir = filepath.Join(dir, event)
-        if h != "" {
-            fmt.Println(dir)
-        }
     }
     for i := p; i <= n; i++ {
         path := data.Photos[i].Path
