@@ -8,6 +8,8 @@ import (
     "path/filepath"
     "io/ioutil"
     "sort"
+    "encoding/json"
+    "flag"
 
     "github.com/rwcarlsen/goexif/exif"
     "code.google.com/p/go.exp/fsnotify"
@@ -17,10 +19,15 @@ var (
     imgExts []string
     data dataType
     baseTime time.Time = time.Now()
-    importFolder string
-    exportFolder string
     maxK = 8
+    ConfigPath string
+    Config *ConfigType
 )
+
+type ConfigType struct {
+    Import []string
+    Export string
+}
 
 type dataType struct {
     Photos Photos
@@ -62,13 +69,24 @@ func InsertPhoto(p Photo) int {
     return i
 }
 
+func init() {
+    flag.StringVar(&ConfigPath, "config", "~/.gophotoconfig", "Optional path to Config file.")
+}
+
 func main() {
-    importFolder = "Import"
-    exportFolder = "Photos"
-    err := os.MkdirAll(exportFolder, 0744)
+    flag.Parse()
+    ConfigFile, err := os.Open(ConfigPath)
+    defer ConfigFile.Close()
     if err != nil {
-        fmt.Println(err)
-        panic(err)
+        fmt.Println("Couldn't open Config file:", err)
+        os.Exit(1)
+    }
+    decoder := json.NewDecoder(ConfigFile)
+    Config = &ConfigType{}
+    err = decoder.Decode(&Config)
+    if err != nil {
+        fmt.Println("Error parsing Config file:", err)
+        os.Exit(1)
     }
 
     imgExts = []string{".jpg", ".jpeg", ".tiff", ".tif", ".gif", ".png"}
@@ -77,15 +95,12 @@ func main() {
 
     data.Times = make(map[int]map[time.Month]map[int]int)
 
-    cwd, _ := os.Getwd()
-    fmt.Println(cwd)
-
-    err = filepath.Walk(exportFolder, gatherInfo)
+    err = os.MkdirAll(Config.Export, 0744)
     if err != nil {
-        fmt.Println("[Error]", err)
-        os.Exit(1)
+        fmt.Println(err)
+        panic(err)
     }
-    err = filepath.Walk(importFolder, gatherInfo)
+    err = filepath.Walk(Config.Export, gatherInfo)
     if err != nil {
         fmt.Println("[Error]", err)
         os.Exit(1)
@@ -97,39 +112,62 @@ func main() {
         return
     }
 
+    wait, _ := time.ParseDuration("0.5s")
     done := make(chan bool)
     go func() {
         for {
             select {
                 case ev := <-watcher.Event:
-                    if ev.IsCreate() {
-                        fmt.Println("event:", ev)
-                        f, err := os.Stat(ev.Name)
-                        if err != nil {
-                            fmt.Println(err)
-                            break
-                        }
-                        if f.IsDir() {
-                            err = filepath.Walk(ev.Name, gatherInfo)
-                            if err != nil {
-                                fmt.Println("[Error]", err)
-                                os.Exit(1)
+                    //fmt.Println(ev)
+                    if ev.IsCreate() || ev.IsModify() {
+                        var f os.FileInfo
+                        f, err = os.Stat(ev.Name)
+                        if err == nil {
+                            for {
+                                f, err = os.Stat(ev.Name)
+                                if err != nil {
+                                    fmt.Println(err)
+                                    break
+                                }
+                                if f.Size() != 0 {
+                                    break
+                                }
                             }
-                        } else {
-                            ProcessFile(ev.Name, f)
+                            time.Sleep(wait)
+
+                            if f.IsDir() {
+                                fmt.Println("Directories not supported.")
+                                err = filepath.Walk(ev.Name, gatherInfo)
+                                if err != nil {
+                                    fmt.Println("[Error]", err)
+                                    os.Exit(1)
+                                }
+                            } else {
+                                ProcessFile(ev.Name, f)
+                            }
+                        } else if !os.IsNotExist(err) {
+                            fmt.Println(err)
                         }
                     }
-                case err := <- watcher.Error:
+                case err := <-watcher.Error:
                     fmt.Println("error:", err)
                     return
             }
         }
     }()
 
-    err = watcher.Watch(importFolder)
-    if err != nil {
-        fmt.Println("error:", err)
-        return
+    for _, importFolder := range Config.Import {
+        err = filepath.Walk(importFolder, gatherInfo)
+        if err != nil {
+            fmt.Println("[Error]", err)
+            os.Exit(1)
+        }
+
+        err = watcher.Watch(importFolder)
+        if err != nil {
+            fmt.Println("error:", err)
+            return
+        }
     }
     <-done
 
@@ -177,6 +215,7 @@ func ProcessFile(path string, f os.FileInfo) (e error) {
             return fmt.Errorf("couldn't get date for %v: %v", path, err)
         }
         date = s.ModTime()
+        fmt.Println(date)
     }
     return nil
 }
@@ -241,6 +280,7 @@ func GroupPhoto(loc int) error {
                     break
                 }
             }
+            if p == -1 { p++ }
             l := len(data.Photos)
             for n = loc + 1; n < l; n++ {
                 if v, ok := days[data.Photos[n].Date.Day()]; !ok || !v {
@@ -267,7 +307,7 @@ func MovePhotos(l, p, n int) error {
         return errors.New("l not in p to n")
     }
     d := data.Photos[l].Date
-    dir, err := filepath.Abs(filepath.Join(exportFolder, fmt.Sprintf("%d", d.Year()), fmt.Sprintf("%d-%s", d.Month(), d.Month().String())))
+    dir, err := filepath.Abs(filepath.Join(Config.Export, fmt.Sprintf("%d", d.Year()), fmt.Sprintf("%d-%s", d.Month(), d.Month().String())))
     if err != nil {
         return errors.New("movephotos: " + err.Error())
     }
