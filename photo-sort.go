@@ -1,6 +1,7 @@
 package main
 
 import (
+    "bytes"
     "os"
     "fmt"
     "time"
@@ -39,8 +40,13 @@ type Photo struct {
     Date time.Time
     Groupl int
     Holiday string
+    Gps gpsType
     // contrast
     // color
+}
+
+type gpsType struct {
+    Lat, Lng float64
 }
 
 type Photos []Photo
@@ -158,16 +164,22 @@ func main() {
     }()
 
     for _, importFolder := range Config.Import {
-        err = filepath.Walk(importFolder, gatherInfo)
-        if err != nil {
-            fmt.Println("[Error]", err)
-            os.Exit(1)
-        }
+        if _, err := os.Stat(importFolder); os.IsNotExist(err) {
+            fmt.Println("import folder doesn't exist:", importFolder)
+        } else if err != nil {
+            err = filepath.Walk(importFolder, gatherInfo)
+            if err != nil {
+                fmt.Println("[Error]", err)
+                os.Exit(1)
+            }
 
-        err = watcher.Watch(importFolder)
-        if err != nil {
+            err = watcher.Watch(importFolder)
+            if err != nil {
+                fmt.Println("error:", err)
+                return
+            }
+        } else {
             fmt.Println("error:", err)
-            return
         }
     }
     <-done
@@ -176,18 +188,27 @@ func main() {
 }
 
 func gatherInfo(path string, f os.FileInfo, err error) (e error) {
+    defer func() {
+        /*if r := recover(); r != nil {
+            fmt.Printf("recovered from panic: %v, at: %v", r, path)
+        }*/
+    }()
     e = ProcessFile(path, f)
     return
 }
 
 func ProcessFile(path string, f os.FileInfo) (e error) {
     if f.Mode().IsRegular(); strIn(filepath.Ext(path), imgExts) {
-        var date time.Time
+        var (
+            date time.Time
+            gps bool = false
+            lat, lng float64 = 0, 0
+        )
         defer func() {
             if e == nil {
                 pa, err := filepath.Abs(path)
                 if err == nil {
-                    err = AddPhoto(date, pa)
+                    err = AddPhoto(date, pa, gps, lat, lng)
                     if err != nil {
                         fmt.Println(err)
                     }
@@ -204,6 +225,22 @@ func ProcessFile(path string, f os.FileInfo) (e error) {
         }
 
         if x, err := exif.Decode(f); err == nil {
+            if gpsv, err := x.Get(exif.GPSVersionID); err == nil && bytes.Equal(gpsv.Val, []byte{2, 2, 0}) {
+                latr, _ := x.Get(exif.GPSLatitudeRef)
+                latd, _ := x.Get(exif.GPSLatitude)
+                lngr, _ := x.Get(exif.GPSLongitudeRef)
+                lngd, _ := x.Get(exif.GPSLongitude)
+
+                lat = gpsUtilVal(latd.Val[0:8]) + gpsUtilVal(latd.Val[8:16])/60 + gpsUtilVal(latd.Val[16:24])/3600
+                lng = gpsUtilVal(lngd.Val[0:8]) + gpsUtilVal(lngd.Val[8:16])/60 + gpsUtilVal(lngd.Val[16:24])/3600
+
+                if fmt.Sprint(latr.Val) == "S" {
+                    lat = -lat
+                }
+                if fmt.Sprint(lngr.Val) == "W" {
+                    lng = -lng
+                }
+            }
             if d, err := x.Get(exif.DateTimeOriginal); err == nil {
                 if date, err = time.Parse("2006:01:02 15:04:05", d.StringVal()); err == nil {
                     return nil
@@ -219,17 +256,29 @@ func ProcessFile(path string, f os.FileInfo) (e error) {
     }
     return nil
 }
+func gpsUtilVal(in []byte) float64 {
+    n := int(in[3]) + int(in[2])*256 // may need to add more stuff here
+    d := int(in[7]) + int(in[6])*256
 
-func AddPhoto(date time.Time, path string) error {
+    return float64(n) / float64(d)
+}
+
+func AddPhoto(date time.Time, path string, gps bool, lat, lng float64) error {
     h, err := GetHoliday(date)
     if err != nil {
         return err
+    }
+
+    var g gpsType;
+    if gps {
+        g.Lat = lat
+        g.Lng = lng
     }
     photo := Photo{
         Date:date,
         Path:path,
         Holiday:h,
-        // TODO: Add holiday here
+        Gps:g,
     }
 
     y := date.Year()
