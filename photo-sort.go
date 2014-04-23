@@ -188,11 +188,6 @@ func main() {
 }
 
 func gatherInfo(path string, f os.FileInfo, err error) (e error) {
-    defer func() {
-        /*if r := recover(); r != nil {
-            fmt.Printf("recovered from panic: %v, at: %v", r, path)
-        }*/
-    }()
     e = ProcessFile(path, f)
     return
 }
@@ -205,7 +200,9 @@ func ProcessFile(path string, f os.FileInfo) (e error) {
             lat, lng float64 = 0, 0
         )
         defer func() {
-            if e == nil {
+            if r := recover(); r != nil {
+                fmt.Printf("recovered from panic: %v, at: %v", r, path)
+            } else if e == nil {
                 pa, err := filepath.Abs(path)
                 if err == nil {
                     err = AddPhoto(date, pa, gps, lat, lng)
@@ -424,44 +421,6 @@ func MovePhotos(l, p, n int) error {
     }
     return nil
 }
-
-// binary search to insert
-/*func InsertPhoto(p Photo) int {
-    l := len(data.Photos)
-    if l == 0 {
-        data.Photos = Photos{p}
-        return 0
-    }
-    r := insertPhoto(p, 0, l)
-    if l == len(data.Photos) {
-        panic(fmt.Sprintf("Photo not added! r = %d, len = %d, \n  photo = %v, \n  photo2 = %v", r, l, p, data.Photos[r-1]))
-    }
-    return r
-}
-func insertPhoto(p Photo, s, e int) int {
-    if s > e {
-        return -1
-    }
-    if s + 1 == e {
-        if s == 0 {
-            data.Photos = append(Photos{p}, data.Photos...)
-            return 0
-        } else if e == len(data.Photos) {
-            data.Photos = append(data.Photos, p)
-            return e
-        } else {
-            data.Photos = append(append(data.Photos[:s], p), data.Photos[s:]...)
-            return s + 1
-        }
-    }
-    m := (s+e) / 2
-    if p.Date.Before(data.Photos[m].Date) {
-        return insertPhoto(p, s, m)
-    } else {
-        return insertPhoto(p, m, e)
-    }
-    return -1
-}*/
 
 func strIn(a string, list []string) bool {
     for _, b := range list {
