@@ -166,7 +166,7 @@ func main() {
     for _, importFolder := range Config.Import {
         if _, err := os.Stat(importFolder); os.IsNotExist(err) {
             fmt.Println("import folder doesn't exist:", importFolder)
-        } else if err != nil {
+        } else if err == nil {
             err = filepath.Walk(importFolder, gatherInfo)
             if err != nil {
                 fmt.Println("[Error]", err)
