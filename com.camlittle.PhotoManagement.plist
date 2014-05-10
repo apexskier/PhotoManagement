@@ -6,8 +6,10 @@
     <string>com.camlittle.PhotoManagement</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/cameronlittle/Pictures/PhotoManagement
+        <string>$GOPATH/src/github.com/apexskier/PhotoManagement/PhotoManagement</string>
     </array>
+    <key>Nice</key>
+    <integer>10</integer>
     <key>KeepAlive</key>
     <true/>
 </dict>
