@@ -18,6 +18,8 @@ import (
 
 var (
     imgExts []string
+    vidExts []string
+    allExts []string
     data dataType
     baseTime time.Time = time.Now()
     maxK = 8
@@ -96,9 +98,9 @@ func main() {
         os.Exit(1)
     }
 
-    imgExts = []string{".jpg", ".jpeg", ".tiff", ".tif", ".gif", ".png"}
-    //vidExts := []string{".mov", ".m4v", ".3gp"}
-    //allExts := append(imgExts, vidExts...)
+    imgExts = []string{".jpg", ".jpeg", ".tiff", ".tif", ".gif", ".png", ".JPG"}
+    vidExts = []string{".mov", ".m4v", ".3gp"}
+    allExts = append(imgExts, vidExts...)
 
     data.Times = make(map[int]map[time.Month]map[int]int)
 
@@ -193,7 +195,7 @@ func gatherInfo(path string, f os.FileInfo, err error) (e error) {
 }
 
 func ProcessFile(path string, f os.FileInfo) (e error) {
-    if f.Mode().IsRegular(); strIn(filepath.Ext(path), imgExts) {
+    if f.Mode().IsRegular(); strIn(filepath.Ext(path), allExts) {
         var (
             date time.Time
             gps bool = false
@@ -221,6 +223,7 @@ func ProcessFile(path string, f os.FileInfo) (e error) {
             return fmt.Errorf("opening %v: %v", path, err)
         }
 
+        // TODO: check if ext is vid
         if x, err := exif.Decode(f); err == nil {
             if gpsv, err := x.Get(exif.GPSVersionID); err == nil && bytes.Equal(gpsv.Val, []byte{2, 2, 0}) {
                 latr, _ := x.Get(exif.GPSLatitudeRef)
