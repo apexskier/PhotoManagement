@@ -29,6 +29,10 @@ endif
 osx:
 	go install
 	sed 's|\$$GOPATH|'"${GOPATH}"'|g' com.camlittle.PhotoManagement.plist > $(HOME)/Library/LaunchAgents/com.camlittle.PhotoManagement.plist
+	if [ ! -f ${HOME}/.gophotoconfig ] ; \
+	then \
+		cp gophotoconfig.json ${HOME}/.gophotoconfig ; \
+	fi;
 	launchctl load $(HOME)/Library/LaunchAgents/com.camlittle.PhotoManagement.plist
 
 test:

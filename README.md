@@ -28,37 +28,31 @@ location.
 
 ### What it does
 
-Run `run.sh` to sort any photos in a folder named Import a folder named Photos.
-You can run `setup_directories.sh` to create the proper folders. Photos will be
-sorted by month and year. The script will try to find groups in the folders
-that get new images, and name them by their location and holiday.
+Photos will be sorted by month and year. The script will try to find groups in
+the folders that get new images, and name them by their location and holiday.
 
-### How it does it
+- Holidays are found using `holiday.go`.
+- Locations are found using gps exif data and google's location api.
+- Duplicates will be copied with a `-D`, where D is the number found appended to
+  the filename.
 
-Holidays are found using the `known_events.py` module. Supports holidays that
-fall on specific days (e.g. 14th of February, or nth &lt;day&gt; of
-&lt;month&gt; (e.g. 3rd Thursday of November). Also supports specified
-birthdays, and Easter.
+### Using
 
-Locations are found using gps exif data and google's location api. To disable this functionality
-remove lines 180 to 216 of App/process.py.
+`go get github.com/apexskier/PhotoManagement`
+`cd $GOPATH/src/github.com/apexskier/PhotoManagement`
+`make`
 
-Will sort the following file extentions: .jpg, .jpeg, .tiff, .tif, .gif, .png.
-
-Duplicate filenames will be skipped, and a notice will be printed.
+This will get the project, build an executable, and copy and load a launchd
+plist file onto your machine. OS X will keep the program running for you
+through launchd. It will also check for a configuration file and make a
+default one if not found. See `~/.gophotoconfig`.
 
 ### Example
 
-Example directory structure after running...
+Example directory structure...
 
 <pre>
-├── setup_directories.sh
-├── run.sh
-├── App
-│   └── ...
-├── Import
-│   └── anything left over (movies, duplicates)
-└── Photos
+└── Photo Library
     └── 2013
         ├── 1-January
         │   ├── img1.jpg
