@@ -27,8 +27,8 @@ else
 endif
 
 osx:
-	go build
-	cp com.camlittle.PhotoManagement.plist $(HOME)/Library/LaunchAgents/com.camlittle.PhotoManagement.plist
+	go install
+	sed 's|\$$GOPATH|'"${GOPATH}"'|g' com.camlittle.PhotoManagement.plist > $(HOME)/Library/LaunchAgents/com.camlittle.PhotoManagement.plist
 	launchctl load $(HOME)/Library/LaunchAgents/com.camlittle.PhotoManagement.plist
 
 test:

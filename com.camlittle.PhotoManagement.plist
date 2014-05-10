@@ -6,7 +6,7 @@
     <string>com.camlittle.PhotoManagement</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$GOPATH/src/github.com/apexskier/PhotoManagement/PhotoManagement</string>
+        <string>$GOPATH/bin/PhotoManagement</string>
     </array>
     <key>Nice</key>
     <integer>10</integer>
